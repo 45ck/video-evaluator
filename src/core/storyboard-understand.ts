@@ -488,8 +488,8 @@ function buildTextDominanceSummary(frames: OcrFrame[]): TextDominanceSummary {
     let frameNarrationCount = 0;
     for (const line of frame.lines) {
       totalLineCount += 1;
-      if (line.region) regionCounts[line.region] += 1;
       if (!isNarrationLikeLine(line.text)) continue;
+      if (line.region) regionCounts[line.region] += 1;
       narrationLikeLineCount += 1;
       frameNarrationCount += 1;
     }
@@ -503,7 +503,7 @@ function buildTextDominanceSummary(frames: OcrFrame[]): TextDominanceSummary {
   const dominantRegionEntries = Object.entries(regionCounts).sort((left, right) => right[1] - left[1]);
   const [dominantRegion, dominantCount] = dominantRegionEntries[0] ?? ["mixed", 0];
   const dominantRegionValue =
-    dominantCount > 0 && dominantCount / Math.max(1, narrationLikeLineCount) >= 0.5
+    narrationLikeLineCount > 0 && dominantCount > 0 && dominantCount / narrationLikeLineCount >= 0.5
       ? (dominantRegion as "top" | "middle" | "bottom")
       : "mixed";
   const likelyNarrationDominated = narrationLikeLineShare >= 0.4 && narrationLikeFrameShare >= 0.5;
@@ -519,7 +519,7 @@ function buildTextDominanceSummary(frames: OcrFrame[]): TextDominanceSummary {
     notes.push("OCR is mostly short UI labels rather than sentence-like narration.");
   }
 
-  if (dominantRegionValue !== "mixed") {
+  if (narrationLikeLineCount > 0 && dominantRegionValue !== "mixed") {
     notes.push(`Narration-like text is concentrated in the ${dominantRegionValue} region.`);
   }
 

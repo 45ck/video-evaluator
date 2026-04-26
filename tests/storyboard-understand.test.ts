@@ -310,5 +310,7 @@ test("understandStoryboard keeps UI-led OCR below the narration-dominated thresh
 
   assert.equal(written.textDominance.likelyNarrationDominated, false);
   assert.ok(written.textDominance.narrationLikeLineShare < 0.4);
+  assert.equal(written.textDominance.dominantRegion, "mixed");
   assert.ok(written.textDominance.notes.some((note: string) => /mostly short UI labels/i.test(note)));
+  assert.ok(!written.textDominance.notes.some((note: string) => /concentrated in the/i.test(note)));
 });

@@ -231,7 +231,11 @@ async function runYtDlp(
   });
 }
 
-async function inspectVideoTarget(runtime: YtDlpRuntime, target: string): Promise<ResolvedVideo> {
+async function inspectVideoTarget(
+  runtime: YtDlpRuntime,
+  target: string,
+  resolutionMode: ResolvedVideo["resolutionMode"],
+): Promise<ResolvedVideo> {
   const { stdout } = await runYtDlp(runtime, ["--dump-single-json", "--no-warnings", "--skip-download", target], {
     maxBuffer: 1024 * 1024 * 16,
   });
@@ -256,7 +260,7 @@ async function inspectVideoTarget(runtime: YtDlpRuntime, target: string): Promis
         : parsed.duration
           ? Number(parsed.duration)
           : undefined,
-    resolutionMode: target.includes("watch?v=") ? "pinned-url" : "pinned-video-id",
+    resolutionMode,
   };
 }
 
@@ -302,10 +306,10 @@ function scoreSearchCandidate(entry: BenchmarkEntry, candidate: Record<string, u
 
 async function resolveVideo(runtime: YtDlpRuntime, entry: BenchmarkEntry): Promise<ResolvedVideo> {
   if (entry.url) {
-    return inspectVideoTarget(runtime, entry.url);
+    return inspectVideoTarget(runtime, entry.url, "pinned-url");
   }
   if (entry.videoId) {
-    return inspectVideoTarget(runtime, `https://www.youtube.com/watch?v=${entry.videoId}`);
+    return inspectVideoTarget(runtime, `https://www.youtube.com/watch?v=${entry.videoId}`, "pinned-video-id");
   }
 
   const { stdout } = await runYtDlp(runtime, ["--flat-playlist", "-J", `ytsearch5:${entry.query}`], {
