@@ -111,6 +111,27 @@ const CAPABILITY_PATTERNS: Array<{ claim: string; patterns: RegExp[] }> = [
   },
 ];
 
+const RESTORE_UPPERCASE_TOKENS = new Map([
+  ["mc", "MC"],
+  ["ict", "ICT"],
+  ["seqta", "SEQTA"],
+  ["it", "IT"],
+  ["ui", "UI"],
+  ["pdf", "PDF"],
+  ["3cx", "3CX"],
+]);
+
+const GENERIC_VIEW_LABELS = new Set([
+  "Guide",
+  "Overview",
+  "Getting Started",
+  "Introduction",
+  "Onboarding",
+  "Settings",
+  "Documentation",
+  "Administration",
+]);
+
 function unique<T>(values: T[]): T[] {
   return [...new Set(values)];
 }
@@ -134,12 +155,18 @@ function titleCase(value: string): string {
   return value
     .split(/\s+/)
     .filter(Boolean)
-    .map((token) => token.charAt(0).toUpperCase() + token.slice(1).toLowerCase())
+    .map((token) => {
+      const normalized = token.toLowerCase();
+      const restored = RESTORE_UPPERCASE_TOKENS.get(normalized);
+      if (restored) return restored;
+      return token.charAt(0).toUpperCase() + token.slice(1).toLowerCase();
+    })
     .join(" ");
 }
 
 const APP_NAME_KEYWORDS = ["helper", "documentation", "tracker", "portal", "studio", "assistant"];
 const APP_NAME_STOPWORDS = new Set(["to", "the", "a", "an", "my", "your", "via", "option"]);
+const APP_LABEL_CONTEXT_STOPWORDS = /\b(option|direct|download|accessing|access|click|open|page|website|under|on this page)\b/i;
 
 function tokenCount(value: string): number {
   return cleanDisplayLine(value).split(/\s+/).filter(Boolean).length;
@@ -184,6 +211,73 @@ function canonicalizeAppLikeLabel(value: string): string {
     .filter((token) => token.length >= 2 || APP_NAME_KEYWORDS.includes(token.toLowerCase()))
     .join(" ");
   return canonical ? titleCase(canonical) : titleCase(normalized);
+}
+
+function canonicalizeViewLikeLabel(value: string): string | null {
+  const cleaned = cleanDisplayLine(value);
+  if (!cleaned) return null;
+  const normalized = cleaned.replace(/[^A-Za-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!normalized) return null;
+  const normalizeProductTokens = (phrase: string) =>
+    phrase
+      .replace(/\bseqta tea[a-z]*\b/gi, "SEQTA Teach")
+      .replace(/\beducation perf[a-z]*\b/gi, "Education Perfect");
+  const trimTrailingNoise = (phrase: string) =>
+    phrase
+      .replace(/\b(on this page|what youll learn|top bar features|student summ views|student views|help centre)\b.*$/i, "")
+      .trim();
+  const buildVerbPhrase = (prefix: string, remainder: string, maxTailTokens: number) => {
+    const tailTokens = normalizeProductTokens(trimTrailingNoise(remainder))
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, maxTailTokens);
+    if (tailTokens.length === 0) return null;
+    return `${prefix} ${titleCase(tailTokens.join(" "))}`.trim();
+  };
+  const specificPatterns = [
+    { pattern: /logging in to ([a-z0-9 ]{3,})/i, build: (value: string) => buildVerbPhrase("Logging In To", value, 3) },
+    { pattern: /how to log in to ([a-z0-9 ]{3,})/i, build: (value: string) => buildVerbPhrase("Logging In To", value, 3) },
+    { pattern: /accessing ([a-z0-9 ]{3,})/i, build: (value: string) => buildVerbPhrase("Accessing", value, 4) },
+    { pattern: /(what you(?:ll|'ll) learn)/i, build: (value: string) => titleCase(value) },
+    { pattern: /(getting started)/i, build: (value: string) => titleCase(value) },
+    { pattern: /(teacher view)/i, build: (value: string) => titleCase(value) },
+    { pattern: /(admin(?:istration)? view)/i, build: (value: string) => titleCase(value) },
+    { pattern: /(ict staff view)/i, build: (value: string) => titleCase(value) },
+    { pattern: /(ict queue)/i, build: (value: string) => titleCase(value) },
+    { pattern: /(administration)/i, build: (value: string) => titleCase(value) },
+    { pattern: /(settings)/i, build: (value: string) => titleCase(value) },
+    { pattern: /(overview)/i, build: (value: string) => titleCase(value) },
+    { pattern: /(onboarding)/i, build: (value: string) => titleCase(value) },
+  ];
+  for (const { pattern, build } of specificPatterns) {
+    const match = normalized.match(pattern);
+    if (match?.[1]) return build(match[1]);
+  }
+  return null;
+}
+
+function dedupeApproximateLabels(values: string[]): string[] {
+  const kept: string[] = [];
+  const keys = new Set<string>();
+  for (const value of values) {
+    const key = normalizeMatchKey(
+      value
+        .replace(/\bseqta tea[a-z]*\b/gi, "seqta teach")
+        .replace(/\beducation perf[a-z]*\b/gi, "education perfect"),
+    );
+    if (!key) continue;
+    if (keys.has(key)) continue;
+    keys.add(key);
+    kept.push(value);
+  }
+  return kept;
+}
+
+function isLikelyAppLabelSource(value: string): boolean {
+  const cleaned = cleanDisplayLine(value);
+  if (!cleaned) return false;
+  if (APP_LABEL_CONTEXT_STOPWORDS.test(cleaned)) return false;
+  return APP_NAME_KEYWORDS.some((keyword) => new RegExp(`\\b${keyword}\\b`, "i").test(cleaned));
 }
 
 function collectRepeatedLabels(
@@ -247,25 +341,39 @@ async function readOcrManifest(request: StoryboardUnderstandRequest): Promise<{ 
 }
 
 function findAppNames(frames: OcrFrame[]): string[] {
+  const candidateCounts = new Map<string, { frames: Set<number>; topHits: number }>();
+  for (const frame of frames) {
+    for (const line of frame.lines) {
+      if (line.region !== "top") continue;
+      if (!isLikelyAppLabelSource(line.text)) continue;
+      const candidate = canonicalizeAppLikeLabel(extractKeywordPhrase(line.text, APP_NAME_KEYWORDS) ?? cleanDisplayLine(line.text));
+      if (isLikelyUiNoise(candidate) || tokenCount(candidate) > 5) continue;
+      const existing = candidateCounts.get(candidate) ?? { frames: new Set<number>(), topHits: 0 };
+      existing.frames.add(frame.index);
+      existing.topHits += 1;
+      candidateCounts.set(candidate, existing);
+    }
+  }
+
   const repeated = collectRepeatedLabels(frames, {
     minOccurrences: 2,
     requireTopRegion: true,
     maxTokens: 5,
   });
   const repeatedCandidates = repeated
+    .filter((entry) => isLikelyAppLabelSource(entry.display))
     .map((entry) => canonicalizeAppLikeLabel(extractKeywordPhrase(entry.display, APP_NAME_KEYWORDS) ?? entry.display))
     .filter((line) => /helper|documentation|tracker|portal|studio|assistant/i.test(line));
-  const topLineCandidates = frames
-    .flatMap((frame) => frame.lines)
-    .filter((line) => line.region === "top")
-    .filter((line) => tokenCount(cleanDisplayLine(line.text)) <= 8)
-    .map((line) => canonicalizeAppLikeLabel(extractKeywordPhrase(line.text, APP_NAME_KEYWORDS) ?? cleanDisplayLine(line.text)))
-    .filter((line) => !isLikelyUiNoise(line))
-    .filter((line) => tokenCount(line) <= 5)
-    .filter((line) => !/^(browse|guide|getting|new)\b/i.test(line))
-    .filter((line) => /helper|documentation|tracker|portal|studio|assistant/i.test(line));
+  const rankedTopLineCandidates = [...candidateCounts.entries()]
+    .filter(([, info]) => info.frames.size >= 2)
+    .sort((left, right) => {
+      if (right[1].frames.size !== left[1].frames.size) return right[1].frames.size - left[1].frames.size;
+      if (right[1].topHits !== left[1].topHits) return right[1].topHits - left[1].topHits;
+      return left[0].localeCompare(right[0]);
+    })
+    .map(([candidate]) => candidate);
 
-  return unique([...repeatedCandidates, ...topLineCandidates]).slice(0, 5);
+  return unique([...repeatedCandidates, ...rankedTopLineCandidates]).slice(0, 5);
 }
 
 function findViews(frames: OcrFrame[], appNames: string[]): string[] {
@@ -284,8 +392,8 @@ function findViews(frames: OcrFrame[], appNames: string[]): string[] {
     requireTopRegion: false,
     maxTokens: 6,
   });
-  const views = repeated
-    .map((entry) => extractKeywordPhrase(entry.display, viewKeywords) ?? entry.display)
+  const repeatedViews = repeated
+    .map((entry) => canonicalizeViewLikeLabel(extractKeywordPhrase(entry.display, viewKeywords) ?? entry.display) ?? titleCase(entry.display))
     .filter((line) => !appNameKeys.has(normalizeMatchKey(line)))
     .filter(
       (line) =>
@@ -293,7 +401,20 @@ function findViews(frames: OcrFrame[], appNames: string[]): string[] {
           line,
         ),
     );
-  return unique(views).slice(0, 12);
+
+  const headlineViews = frames
+    .flatMap((frame) =>
+      frame.lines
+        .filter((line) => line.region !== "bottom")
+        .filter((line) => line.confidence >= 70)
+        .map((line) => canonicalizeViewLikeLabel(line.text))
+        .filter((line): line is string => Boolean(line)),
+    )
+    .filter((line) => !appNameKeys.has(normalizeMatchKey(line)));
+
+  const combined = dedupeApproximateLabels([...headlineViews, ...repeatedViews]).slice(0, 12);
+  const hasSpecificView = combined.some((line) => !GENERIC_VIEW_LABELS.has(line));
+  return hasSpecificView ? combined.filter((line) => !GENERIC_VIEW_LABELS.has(line)).slice(0, 12) : combined;
 }
 
 function buildClaims(frames: OcrFrame[]): SummaryClaim[] {

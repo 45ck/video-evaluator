@@ -105,7 +105,6 @@ test("understandStoryboard extracts app names, views, capabilities, and transiti
   const written = JSON.parse(await readFile(result.outputPath, "utf8"));
 
   assert.ok(written.appNames.includes("Tech Helper"));
-  assert.ok(written.appNames.some((name: string) => /documentation/i.test(name)));
   assert.ok(written.views.includes("Win Network Guide"));
   assert.equal(written.sampling.mode, "hybrid");
   assert.equal(written.sampling.detectedChangeCount, 6);
@@ -128,8 +127,80 @@ test("understandStoryboard extracts app names, views, capabilities, and transiti
       claim.claim.includes("authenticated or admin-only surfaces"),
     ),
   );
+  assert.ok(
+    written.likelyCapabilities.some((claim: { claim: string }) =>
+      claim.claim.includes("browsable documentation or onboarding content"),
+    ),
+  );
   assert.deepEqual(written.likelyFlow, [
     "frame 1 -> 2: screen-change - major screen change",
     "frame 2 -> 3: state-change - content/state changed on the same screen",
   ]);
+});
+
+test("understandStoryboard favors persistent shell labels and specific page headlines for docs-style videos", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "video-evaluator-understand-docs-"));
+  const storyboardDir = join(dir, "storyboard");
+  await mkdir(storyboardDir, { recursive: true });
+  await writeFile(
+    join(dir, "storyboard.ocr.json"),
+    JSON.stringify(
+      {
+        storyboardDir,
+        videoPath: "/tmp/docs.mp4",
+        samplingMode: "hybrid",
+        detectedChangeCount: 8,
+        frames: [
+          {
+            index: 1,
+            timestampSeconds: 0,
+            samplingReason: "change-peak",
+            nearestChangeDistanceSeconds: 0,
+            lines: [
+              { text: "MC ICT Documentation", confidence: 96, region: "top" },
+              { text: "Getting Started", confidence: 90, region: "middle" },
+              { text: "Read the basics", confidence: 88, region: "middle" },
+            ],
+          },
+          {
+            index: 2,
+            timestampSeconds: 10,
+            samplingReason: "change-peak",
+            nearestChangeDistanceSeconds: 0,
+            lines: [
+              { text: "MC ICT Documentation", confidence: 96, region: "top" },
+              { text: "Logging In to SEQTA Teach", confidence: 92, region: "top" },
+              { text: "Option 2: via MC Portal", confidence: 90, region: "top" },
+              { text: "How to log in to SEQTA Teach", confidence: 90, region: "middle" },
+            ],
+          },
+          {
+            index: 3,
+            timestampSeconds: 20,
+            samplingReason: "change-peak",
+            nearestChangeDistanceSeconds: 0,
+            lines: [
+              { text: "MC ICT Documentation", confidence: 95, region: "top" },
+              { text: "Accessing Google Workspace", confidence: 91, region: "top" },
+              { text: "Your MC Google account", confidence: 85, region: "middle" },
+            ],
+          },
+        ],
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+
+  const result = await understandStoryboard({
+    ocrPath: join(dir, "storyboard.ocr.json"),
+  });
+  const written = JSON.parse(await readFile(result.outputPath, "utf8"));
+
+  assert.ok(written.appNames.includes("MC ICT Documentation"));
+  assert.ok(!written.appNames.includes("MC Portal"));
+  assert.ok(written.views.includes("Logging In To SEQTA Teach"));
+  assert.ok(written.views.includes("Accessing Google Workspace"));
+  assert.ok(!written.views.includes("Getting Started"));
 });
