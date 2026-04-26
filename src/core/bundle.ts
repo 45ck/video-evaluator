@@ -16,6 +16,7 @@ const REPORT_CANDIDATES = [
   "storyboard.manifest.json",
   "storyboard.ocr.json",
   "storyboard.summary.json",
+  "storyboard.transitions.json",
   "metadata.json",
   "environment.json",
   "events.json",
@@ -103,6 +104,7 @@ function deriveRecommendedFocus(
   if (artifacts["storyboard.manifest.json"]) focus.add("storyboard evidence");
   if (artifacts["storyboard.ocr.json"]) focus.add("extracted UI text");
   if (artifacts["storyboard.summary.json"]) focus.add("inferred product summary");
+  if (artifacts["storyboard.transitions.json"]) focus.add("frame-to-frame changes");
   if (focus.size === 0 && (artifacts["output.mp4"] || artifacts["video.mp4"])) {
     focus.add("overall pacing");
     focus.add("visual clarity");
@@ -259,11 +261,12 @@ export async function copySkillPack(
   }
 
   const distSource = join(repoRoot, "dist");
-  if (await pathExists(distSource)) {
-    await copyDirRecursive(distSource, join(targetRoot, "dist"), copied);
+  if (!(await pathExists(distSource))) {
+    throw new Error("dist/ is missing. Run `npm run build` before `install-skill-pack`.");
   }
+  await copyDirRecursive(distSource, join(targetRoot, "dist"), copied);
 
-  for (const repoFile of ["package.json", "README.md"]) {
+  for (const repoFile of ["package.json", "package-lock.json", "README.md", "LICENSE", "eng.traineddata"]) {
     const sourcePath = join(repoRoot, repoFile);
     if (!(await pathExists(sourcePath))) continue;
     const targetPath = join(targetRoot, repoFile);

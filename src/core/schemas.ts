@@ -40,6 +40,14 @@ export const StoryboardUnderstandRequestSchema = z.object({
   message: "storyboardDir or ocrPath is required",
 });
 
+export const StoryboardTransitionsRequestSchema = z.object({
+  storyboardDir: z.string().min(1).optional(),
+  ocrPath: z.string().min(1).optional(),
+  threshold: z.number().min(0).max(1).default(0.02),
+}).refine((input) => Boolean(input.storyboardDir || input.ocrPath), {
+  message: "storyboardDir or ocrPath is required",
+});
+
 export const CompareBundlesRequestSchema = z.object({
   left: VideoIntakeRequestSchema,
   right: VideoIntakeRequestSchema,
@@ -57,5 +65,6 @@ export type ReviewBundleRequest = z.infer<typeof ReviewBundleRequestSchema>;
 export type StoryboardExtractRequest = z.infer<typeof StoryboardExtractRequestSchema>;
 export type StoryboardOcrRequest = z.infer<typeof StoryboardOcrRequestSchema>;
 export type StoryboardUnderstandRequest = z.infer<typeof StoryboardUnderstandRequestSchema>;
+export type StoryboardTransitionsRequest = z.infer<typeof StoryboardTransitionsRequestSchema>;
 export type CompareBundlesRequest = z.infer<typeof CompareBundlesRequestSchema>;
 export type PackageReviewPromptRequest = z.infer<typeof PackageReviewPromptRequestSchema>;

@@ -17,3 +17,7 @@ This skill does not replace domain-specific QA. It tells the agent:
 Repo-side runner:
 
 `node --import tsx scripts/harness/review-bundle.ts`
+
+Installed-pack runner:
+
+`node ./.video-evaluator/agent/run-tool.mjs review-bundle`

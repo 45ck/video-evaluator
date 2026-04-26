@@ -13,6 +13,7 @@
     "dist/**",
     "agent/**",
     "skills/**",
+    "eng.traineddata",
     "README.md",
     "LICENSE"
   ],
@@ -25,11 +26,14 @@
     "storyboard-extract": "node --import tsx scripts/harness/storyboard-extract.ts",
     "storyboard-ocr": "node --import tsx scripts/harness/storyboard-ocr.ts",
     "storyboard-understand": "node --import tsx scripts/harness/storyboard-understand.ts",
+    "storyboard-transitions": "node --import tsx scripts/harness/storyboard-transitions.ts",
     "review-bundle": "node --import tsx scripts/harness/review-bundle.ts",
     "compare-bundles": "node --import tsx scripts/harness/compare-bundles.ts",
     "package-review-prompt": "node --import tsx scripts/harness/package-review-prompt.ts"
   },
   "dependencies": {
+    "pixelmatch": "^7.1.0",
+    "pngjs": "^7.0.0",
     "tesseract.js": "^7.0.0",
     "zod": "^3.24.2"
   },

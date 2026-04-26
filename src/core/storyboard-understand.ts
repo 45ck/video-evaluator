@@ -15,6 +15,15 @@ interface OcrManifest {
   summary?: { uniqueLines?: string[] };
 }
 
+interface TransitionsManifest {
+  transitions?: Array<{
+    inferredTransition: string;
+    fromFrameIndex: number;
+    toFrameIndex: number;
+    confidence: number;
+  }>;
+}
+
 interface SummaryClaim {
   claim: string;
   evidence: Array<{
@@ -31,6 +40,7 @@ export interface StoryboardSummaryManifest {
   videoPath: string;
   appNames: string[];
   views: string[];
+  likelyFlow: string[];
   likelyCapabilities: SummaryClaim[];
   openQuestions: string[];
 }
@@ -108,9 +118,29 @@ function buildClaims(frames: OcrFrame[]): SummaryClaim[] {
   return claims;
 }
 
+async function readTransitions(storyboardDir: string): Promise<TransitionsManifest | null> {
+  try {
+    const raw = await readFile(join(storyboardDir, "storyboard.transitions.json"), "utf8");
+    return JSON.parse(raw) as TransitionsManifest;
+  } catch {
+    return null;
+  }
+}
+
+function buildLikelyFlow(transitions: TransitionsManifest | null): string[] {
+  if (!transitions?.transitions?.length) return [];
+  return transitions.transitions
+    .filter((transition) => transition.confidence >= 0.6)
+    .map(
+      (transition) =>
+        `frame ${transition.fromFrameIndex} -> ${transition.toFrameIndex}: ${transition.inferredTransition}`,
+    );
+}
+
 export async function understandStoryboard(input: StoryboardUnderstandRequest) {
   const { ocrPath, manifest } = await readOcrManifest(input);
   const lines = manifest.frames.flatMap((frame) => frame.lines.map((line) => line.text));
+  const transitions = await readTransitions(manifest.storyboardDir);
   const summary: StoryboardSummaryManifest = {
     schemaVersion: 1,
     createdAt: new Date().toISOString(),
@@ -119,6 +149,7 @@ export async function understandStoryboard(input: StoryboardUnderstandRequest) {
     videoPath: manifest.videoPath,
     appNames: findAppNames(lines),
     views: findViews(lines),
+    likelyFlow: buildLikelyFlow(transitions),
     likelyCapabilities: buildClaims(manifest.frames),
     openQuestions: [
       "What exact user actions happened between these storyboard frames?",

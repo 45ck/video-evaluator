@@ -3,15 +3,16 @@
 Shared video evaluation and understanding skill pack for coding-agent
 workflows.
 
-This repo is the common review layer for projects like
-`content-machine` and `demo-machine`. It does not replace their
-domain-specific pipelines. It owns the generic pieces:
+This repo is a standalone evaluation pack that is meant to be proven
+useful before other repos depend on it. It does not replace
+domain-specific generation or QA pipelines. It owns the generic pieces:
 
 - artifact-bundle intake
 - latest-run discovery
-- storyboard and keyframe extraction
+- storyboard frame extraction
 - OCR over extracted storyboard frames
 - heuristic storyboard understanding from OCR evidence
+- frame-to-frame transition inference from image diffs and OCR deltas
 - report/status normalization
 - review prompt packaging
 - bundle-to-bundle comparison
@@ -20,6 +21,14 @@ domain-specific pipelines. It owns the generic pieces:
 The current shape is intentionally narrow. It helps agents understand
 what a video run produced and how to review it, without pretending one
 generic scorer can replace domain-specific checks.
+
+Current boundary:
+
+- good at evidence extraction for UI-heavy product videos
+- good at turning artifacts into grounded review prompts
+- decent at first-pass OCR-backed product understanding
+- still weak at full-sequence action reconstruction
+- still heuristic, not deep multimodal video understanding
 
 ## Shipped Tools
 
@@ -30,10 +39,18 @@ generic scorer can replace domain-specific checks.
 - `storyboard-extract`
 - `storyboard-ocr`
 - `storyboard-understand`
+- `storyboard-transitions`
 - `compare-bundles`
 - `package-review-prompt`
 
 ## Local Use
+
+Prerequisites:
+
+- Node.js `>=20.6.0`
+- `ffmpeg` and `ffprobe` on `PATH`
+- bundled `eng.traineddata` or network access for `tesseract.js` to
+  fetch language data on first use
 
 ```bash
 npm install
@@ -81,6 +98,16 @@ cat <<'JSON' | node --import tsx scripts/harness/storyboard-understand.ts
 JSON
 ```
 
+Infer transitions between storyboard frames:
+
+```bash
+cat <<'JSON' | node --import tsx scripts/harness/storyboard-transitions.ts
+{
+  "storyboardDir": "./output/storyboard"
+}
+JSON
+```
+
 Install the skill pack into another repo:
 
 ```bash
@@ -91,15 +118,25 @@ cat <<'JSON' | node --import tsx scripts/harness/install-skill-pack.ts
 JSON
 ```
 
-That materialized pack now includes the built runtime surface under
-`dist/`, and `install-skill-pack` installs runtime dependencies in the
-materialized folder by default, so the copied `agent/run-tool.mjs` can
-run inside a blank workspace instead of assuming a preinstalled package
-dependency.
+`install-skill-pack` expects an existing local build. It copies
+`dist/`, `skills/`, `agent/run-tool.mjs`, `eng.traineddata`, and the
+package metadata into the target folder, then installs runtime
+dependencies there by default.
 
 ## Agent Surface
 
-Installed-package consumers should prefer:
+Materialized-pack consumers should prefer:
+
+```bash
+cat <<'JSON' | node ./.video-evaluator/agent/run-tool.mjs package-review-prompt
+{
+  "outputDir": "./output/storyboard",
+  "focus": ["what the app appears to do", "flow progression"]
+}
+JSON
+```
+
+If you install from npm instead of copying the local pack:
 
 ```bash
 cat <<'JSON' | node ./node_modules/@45ck/video-evaluator/agent/run-tool.mjs review-bundle
@@ -116,9 +153,12 @@ Short term:
 - stabilize a common artifact contract
 - keep video review prompts and summaries consistent across repos
 - give Codex and Claude Code a shared skill surface
+- keep capability claims honest while the sequence layer is still
+  heuristic
 
 Later:
 
-- frame-diff helpers
+- denser sampling around scene changes
+- layout-aware OCR and region-level diffs
 - richer timeline/event understanding
 - repo-specific adapters that plug into the shared bundle contract

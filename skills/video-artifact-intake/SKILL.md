@@ -19,3 +19,7 @@ This skill owns:
 Repo-side runner:
 
 `node --import tsx scripts/harness/video-intake.ts`
+
+Installed-pack runner:
+
+`node ./.video-evaluator/agent/run-tool.mjs video-artifact-intake`

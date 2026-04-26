@@ -43,7 +43,9 @@ function buildPrompt(input: PackageReviewPromptRequest, bundle: Awaited<ReturnTy
     summaryPreview?: {
       appNames: string[];
       views: string[];
+      flow: string[];
       claims: string[];
+      openQuestions: string[];
     };
   }).summaryPreview;
   if (summaryPreview && (summaryPreview.appNames.length || summaryPreview.views.length || summaryPreview.claims.length)) {
@@ -54,8 +56,17 @@ function buildPrompt(input: PackageReviewPromptRequest, bundle: Awaited<ReturnTy
     for (const view of summaryPreview.views) {
       lines.push(`  - view: ${view}`);
     }
+    for (const flow of summaryPreview.flow) {
+      lines.push(`  - flow: ${flow}`);
+    }
     for (const claim of summaryPreview.claims) {
       lines.push(`  - capability: ${claim}`);
+    }
+    if (summaryPreview.openQuestions.length > 0) {
+      lines.push("- Open questions:");
+      for (const question of summaryPreview.openQuestions) {
+        lines.push(`  - ${question}`);
+      }
     }
   }
 
@@ -111,22 +122,32 @@ async function loadOcrPreview(ocrPath: string | undefined): Promise<string[]> {
 
 async function loadSummaryPreview(
   summaryPath: string | undefined,
-): Promise<{ appNames: string[]; views: string[]; claims: string[] } | null> {
+): Promise<{
+  appNames: string[];
+  views: string[];
+  flow: string[];
+  claims: string[];
+  openQuestions: string[];
+} | null> {
   if (!summaryPath) return null;
   try {
     const raw = await readFile(summaryPath, "utf8");
     const parsed = JSON.parse(raw) as {
       appNames?: string[];
       views?: string[];
+      likelyFlow?: string[];
       likelyCapabilities?: Array<{ claim?: string }>;
+      openQuestions?: string[];
     };
     return {
       appNames: (parsed.appNames ?? []).slice(0, 3),
       views: (parsed.views ?? []).slice(0, 5),
+      flow: (parsed.likelyFlow ?? []).slice(0, 6),
       claims: (parsed.likelyCapabilities ?? [])
         .map((entry) => entry.claim)
         .filter((value): value is string => typeof value === "string")
         .slice(0, 5),
+      openQuestions: (parsed.openQuestions ?? []).filter(Boolean).slice(0, 4),
     };
   } catch {
     return null;

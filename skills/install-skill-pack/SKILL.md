@@ -18,3 +18,7 @@ Outputs:
 Repo-side runner:
 
 `node --import tsx scripts/harness/install-skill-pack.ts`
+
+Installed-pack runner:
+
+`node ./.video-evaluator/agent/run-tool.mjs install-skill-pack`

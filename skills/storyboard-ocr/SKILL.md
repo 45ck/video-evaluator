@@ -18,3 +18,7 @@ This skill owns:
 Repo-side runner:
 
 `node --import tsx scripts/harness/storyboard-ocr.ts`
+
+Installed-pack runner:
+
+`node ./.video-evaluator/agent/run-tool.mjs storyboard-ocr`

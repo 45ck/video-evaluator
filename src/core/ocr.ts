@@ -1,14 +1,25 @@
 import { existsSync } from "node:fs";
 import { copyFile, mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 function resolveTesseractCacheDir(): string {
   return join(process.cwd(), ".cache", "video-evaluator", "tesseract");
 }
 
+function resolveLocalEngCandidates(): string[] {
+  return [
+    process.env.VIDEO_EVALUATOR_TESSDATA_PATH,
+    join(process.cwd(), "eng.traineddata"),
+    join(PACKAGE_ROOT, "eng.traineddata"),
+  ].filter((value): value is string => typeof value === "string" && value.length > 0);
+}
+
 async function ensureLocalEngTrainedData(cacheDir: string): Promise<void> {
-  const localEng = join(process.cwd(), "eng.traineddata");
-  if (!existsSync(localEng)) return;
+  const localEng = resolveLocalEngCandidates().find((candidate) => existsSync(candidate));
+  if (!localEng) return;
 
   const dest = join(cacheDir, "eng.traineddata");
   if (existsSync(dest)) return;

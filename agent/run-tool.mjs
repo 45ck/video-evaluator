@@ -7,9 +7,11 @@ import {
   SkillCatalogRequestSchema,
   StoryboardExtractRequestSchema,
   StoryboardOcrRequestSchema,
+  StoryboardTransitionsRequestSchema,
   StoryboardUnderstandRequestSchema,
   VideoIntakeRequestSchema,
   compareBundles,
+  inferStoryboardTransitions,
   installSkillPack,
   listSkillCatalog,
   packageReviewPrompt,
@@ -17,6 +19,7 @@ import {
   runHarnessTool,
   runStoryboardExtract,
   runStoryboardOcr,
+  runStoryboardTransitions,
   runStoryboardUnderstand,
   runVideoIntake,
 } from "../dist/index.js";
@@ -36,6 +39,11 @@ const registry = {
   },
   "video-intake": {
     tool: "video-evaluator/video-intake",
+    inputSchema: VideoIntakeRequestSchema,
+    handler: async ({ input }) => runVideoIntake(input),
+  },
+  "video-artifact-intake": {
+    tool: "video-evaluator/video-artifact-intake",
     inputSchema: VideoIntakeRequestSchema,
     handler: async ({ input }) => runVideoIntake(input),
   },
@@ -59,8 +67,18 @@ const registry = {
     inputSchema: StoryboardUnderstandRequestSchema,
     handler: async ({ input }) => runStoryboardUnderstand(input),
   },
+  "storyboard-transitions": {
+    tool: "video-evaluator/storyboard-transitions",
+    inputSchema: StoryboardTransitionsRequestSchema,
+    handler: async ({ input }) => runStoryboardTransitions(input),
+  },
   "compare-bundles": {
     tool: "video-evaluator/compare-bundles",
+    inputSchema: CompareBundlesRequestSchema,
+    handler: async ({ input }) => compareBundles(input),
+  },
+  "compare-video-runs": {
+    tool: "video-evaluator/compare-video-runs",
     inputSchema: CompareBundlesRequestSchema,
     handler: async ({ input }) => compareBundles(input),
   },

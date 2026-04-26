@@ -18,3 +18,7 @@ This skill owns:
 Repo-side runner:
 
 `node --import tsx scripts/harness/storyboard-understand.ts`
+
+Installed-pack runner:
+
+`node ./.video-evaluator/agent/run-tool.mjs storyboard-understand`

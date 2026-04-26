@@ -17,3 +17,7 @@ This skill produces:
 Repo-side runner:
 
 `node --import tsx scripts/harness/package-review-prompt.ts`
+
+Installed-pack runner:
+
+`node ./.video-evaluator/agent/run-tool.mjs package-review-prompt`

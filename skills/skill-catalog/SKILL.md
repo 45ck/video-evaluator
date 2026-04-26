@@ -11,3 +11,7 @@ Use this when an agent needs to discover the shipped capabilities in
 Repo-side runner:
 
 `node --import tsx scripts/harness/skill-catalog.ts`
+
+Installed-pack runner:
+
+`node ./.video-evaluator/agent/run-tool.mjs skill-catalog`

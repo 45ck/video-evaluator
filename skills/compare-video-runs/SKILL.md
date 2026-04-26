@@ -17,3 +17,7 @@ This is best for:
 Repo-side runner:
 
 `node --import tsx scripts/harness/compare-bundles.ts`
+
+Installed-pack runner:
+
+`node ./.video-evaluator/agent/run-tool.mjs compare-video-runs`
