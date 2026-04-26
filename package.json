@@ -30,7 +30,8 @@
     "storyboard-transitions": "node --import tsx scripts/harness/storyboard-transitions.ts",
     "review-bundle": "node --import tsx scripts/harness/review-bundle.ts",
     "compare-bundles": "node --import tsx scripts/harness/compare-bundles.ts",
-    "package-review-prompt": "node --import tsx scripts/harness/package-review-prompt.ts"
+    "package-review-prompt": "node --import tsx scripts/harness/package-review-prompt.ts",
+    "benchmark:youtube": "node --import tsx scripts/bench/youtube-diverse-benchmark.ts"
   },
   "dependencies": {
     "pixelmatch": "^7.1.0",

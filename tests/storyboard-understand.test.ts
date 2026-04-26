@@ -132,6 +132,8 @@ test("understandStoryboard extracts app names, views, capabilities, and transiti
       claim.claim.includes("browsable documentation or onboarding content"),
     ),
   );
+  assert.equal(written.interactionSegments.length, 1);
+  assert.match(written.interactionSegments[0].summary, /same screen/i);
   assert.deepEqual(written.likelyFlow, [
     "frame 1 -> 2: screen-change - major screen change",
     "frame 2 -> 3: state-change - content/state changed on the same screen",
@@ -203,4 +205,5 @@ test("understandStoryboard favors persistent shell labels and specific page head
   assert.ok(written.views.includes("Logging In To SEQTA Teach"));
   assert.ok(written.views.includes("Accessing Google Workspace"));
   assert.ok(!written.views.includes("Getting Started"));
+  assert.deepEqual(written.interactionSegments, []);
 });

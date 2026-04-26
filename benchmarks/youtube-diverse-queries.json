@@ -1,0 +1,75 @@
+[
+  {
+    "id": "windows-wifi-tutorial",
+    "category": "desktop-tutorial",
+    "query": "windows wifi tutorial",
+    "expectedFit": "high",
+    "startSeconds": 60,
+    "clipSeconds": 75
+  },
+  {
+    "id": "papercut-printing",
+    "category": "software-walkthrough",
+    "query": "papercut printing tutorial",
+    "expectedFit": "high",
+    "startSeconds": 120,
+    "clipSeconds": 75
+  },
+  {
+    "id": "google-workspace",
+    "category": "productivity-software",
+    "query": "google workspace tutorial for beginners",
+    "expectedFit": "high",
+    "startSeconds": 90,
+    "clipSeconds": 75
+  },
+  {
+    "id": "minecraft-gameplay",
+    "category": "gameplay",
+    "query": "minecraft survival gameplay",
+    "expectedFit": "medium",
+    "clipSeconds": 75
+  },
+  {
+    "id": "omelette-cooking",
+    "category": "cooking",
+    "query": "how to make an omelette",
+    "expectedFit": "low",
+    "clipSeconds": 75
+  },
+  {
+    "id": "tokyo-travel-vlog",
+    "category": "travel-vlog",
+    "query": "tokyo travel vlog",
+    "expectedFit": "low",
+    "clipSeconds": 75
+  },
+  {
+    "id": "soccer-highlights",
+    "category": "sports-highlights",
+    "query": "soccer highlights",
+    "expectedFit": "low",
+    "clipSeconds": 75
+  },
+  {
+    "id": "live-piano",
+    "category": "music-performance",
+    "query": "live piano performance",
+    "expectedFit": "low",
+    "clipSeconds": 75
+  },
+  {
+    "id": "ted-productivity",
+    "category": "talk",
+    "query": "ted talk productivity",
+    "expectedFit": "medium",
+    "clipSeconds": 75
+  },
+  {
+    "id": "cute-cats",
+    "category": "animals",
+    "query": "cute cat compilation",
+    "expectedFit": "low",
+    "clipSeconds": 75
+  }
+]

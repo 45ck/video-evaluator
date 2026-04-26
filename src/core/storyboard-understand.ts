@@ -35,6 +35,8 @@ interface TransitionsManifest {
     inferredTransition: string;
     fromFrameIndex: number;
     toFrameIndex: number;
+    fromTimestampSeconds?: number;
+    toTimestampSeconds?: number;
     confidence: number;
     transitionKind?: "screen-change" | "state-change" | "scroll-change" | "dialog-change" | "uncertain";
   }>;
@@ -63,6 +65,15 @@ export interface StoryboardSummaryManifest {
     averageNearestChangeDistanceSeconds?: number;
     notes: string[];
   };
+  interactionSegments: Array<{
+    startFrameIndex: number;
+    endFrameIndex: number;
+    startTimestampSeconds: number;
+    endTimestampSeconds: number;
+    transitionKinds: Array<"screen-change" | "state-change" | "scroll-change" | "dialog-change" | "uncertain">;
+    summary: string;
+    evidence: string[];
+  }>;
   likelyFlow: string[];
   likelyCapabilities: SummaryClaim[];
   openQuestions: string[];
@@ -533,6 +544,117 @@ function buildLikelyFlow(transitions: TransitionsManifest | null): string[] {
     );
 }
 
+function isSegmentWorthyTransition(transition: NonNullable<TransitionsManifest["transitions"]>[number]) {
+  if (transition.confidence < 0.6) return false;
+  if (transition.transitionKind && transition.transitionKind !== "screen-change" && transition.transitionKind !== "uncertain") {
+    return true;
+  }
+  return !/major screen change/i.test(transition.inferredTransition);
+}
+
+function buildInteractionSegmentSummary(
+  segmentTransitions: NonNullable<TransitionsManifest["transitions"]>,
+  involvedFrames: OcrFrame[],
+  appNames: string[],
+) {
+  const kinds = segmentTransitions.map((transition) => transition.transitionKind ?? "uncertain");
+  const lowerLabels = segmentTransitions.map((transition) => transition.inferredTransition.toLowerCase());
+  const appLabel = appNames[0] ?? "The interface";
+  const stepLines = involvedFrames
+    .flatMap((frame) => frame.lines.map((line) => cleanDisplayLine(line.text)))
+    .filter((line) => /^step \d+/i.test(line))
+    .slice(0, 4);
+  const signInEvidence = involvedFrames
+    .flatMap((frame) => frame.lines.map((line) => cleanDisplayLine(line.text)))
+    .filter((line) => /\bsign\s?in\b/i.test(line) || /password/i.test(line) || /add printers/i.test(line))
+    .slice(0, 4);
+
+  if (lowerLabels.some((label) => /sign-in screen/i.test(label))) {
+    return {
+      summary: `${appLabel} moved into an authentication step.`,
+      evidence: unique(signInEvidence).slice(0, 4),
+    };
+  }
+
+  if (kinds.includes("scroll-change") && kinds.includes("dialog-change")) {
+    return {
+      summary:
+        stepLines.length >= 2
+          ? `${appLabel} progressed through a guided same-screen workflow before opening a focused panel.`
+          : `${appLabel} scrolled through a same-screen workflow and changed a focused panel.`,
+      evidence: unique(stepLines).slice(0, 4),
+    };
+  }
+
+  if (kinds.includes("dialog-change")) {
+    return {
+      summary: `${appLabel} changed a focused panel or guided step.`,
+      evidence: unique(stepLines).slice(0, 4),
+    };
+  }
+
+  if (kinds.includes("scroll-change")) {
+    return {
+      summary: `${appLabel} scrolled through a dense same-screen flow.`,
+      evidence: unique(stepLines).slice(0, 4),
+    };
+  }
+
+  return {
+    summary: `${appLabel} changed state within the same screen.`,
+    evidence: unique(stepLines.length > 0 ? stepLines : signInEvidence).slice(0, 4),
+  };
+}
+
+function buildInteractionSegments(
+  transitions: TransitionsManifest | null,
+  frames: OcrFrame[],
+  appNames: string[],
+): StoryboardSummaryManifest["interactionSegments"] {
+  if (!transitions?.transitions?.length) return [];
+  const frameMap = new Map(frames.map((frame) => [frame.index, frame]));
+  const segmentTransitions = transitions.transitions.filter(isSegmentWorthyTransition);
+  if (segmentTransitions.length === 0) return [];
+
+  const groups: Array<NonNullable<TransitionsManifest["transitions"]>> = [];
+  let currentGroup: NonNullable<TransitionsManifest["transitions"]> = [];
+
+  for (const transition of segmentTransitions) {
+    const previous = currentGroup[currentGroup.length - 1];
+    const withinFrameGap = !previous || transition.fromFrameIndex <= previous.toFrameIndex + 1;
+    const withinTimeGap =
+      !previous ||
+      typeof previous.toTimestampSeconds !== "number" ||
+      typeof transition.fromTimestampSeconds !== "number" ||
+      transition.fromTimestampSeconds - previous.toTimestampSeconds <= 18;
+    if (!previous || (withinFrameGap && withinTimeGap)) {
+      currentGroup.push(transition);
+      continue;
+    }
+    groups.push(currentGroup);
+    currentGroup = [transition];
+  }
+  if (currentGroup.length > 0) groups.push(currentGroup);
+
+  return groups.map((group) => {
+    const startFrameIndex = group[0].fromFrameIndex;
+    const endFrameIndex = group[group.length - 1].toFrameIndex;
+    const involvedFrames = frames.filter((frame) => frame.index >= startFrameIndex && frame.index <= endFrameIndex);
+    const { summary, evidence } = buildInteractionSegmentSummary(group, involvedFrames, appNames);
+    return {
+      startFrameIndex,
+      endFrameIndex,
+      startTimestampSeconds:
+        group[0].fromTimestampSeconds ?? frameMap.get(startFrameIndex)?.timestampSeconds ?? startFrameIndex,
+      endTimestampSeconds:
+        group[group.length - 1].toTimestampSeconds ?? frameMap.get(endFrameIndex)?.timestampSeconds ?? endFrameIndex,
+      transitionKinds: group.map((transition) => transition.transitionKind ?? "uncertain"),
+      summary,
+      evidence,
+    };
+  });
+}
+
 export async function understandStoryboard(input: StoryboardUnderstandRequest) {
   const { ocrPath, manifest } = await readOcrManifest(input);
   const transitions = await readTransitions(manifest.storyboardDir);
@@ -548,6 +670,7 @@ export async function understandStoryboard(input: StoryboardUnderstandRequest) {
     appNames,
     views,
     sampling: buildSamplingSummary(manifest, storyboardFallback),
+    interactionSegments: buildInteractionSegments(transitions, manifest.frames, appNames),
     likelyFlow: buildLikelyFlow(transitions),
     likelyCapabilities: buildClaims(manifest.frames),
     openQuestions: [

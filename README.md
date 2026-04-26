@@ -145,6 +145,41 @@ The transitions artifact now includes:
 - `sharedLineCount`
 - OCR-derived evidence strings
 
+Run the mixed public-video benchmark:
+
+```bash
+npm run benchmark:youtube -- --limit=3
+```
+
+Useful flags:
+
+- `--manifest=benchmarks/youtube-diverse-queries.json`
+- `--output-root=/tmp/video-evaluator-youtube-benchmark`
+- `--limit=10`
+- `--frame-count=8`
+- `--clip-seconds=75`
+- `--change-threshold=0.08`
+- `--min-confidence=45`
+
+The benchmark resolves each query with `yt-dlp`, downloads a public
+sample, clips it, runs storyboard extraction/OCR/transitions/summary,
+and writes:
+
+- per-case `case-report.json`
+- aggregate `benchmark.report.json`
+- human-readable `benchmark.report.md`
+
+Manifest entries can set `startSeconds` to skip title-card/introduction
+sections and target the real product segment of a video.
+
+If the machine has an old global `yt-dlp`, the benchmark will bootstrap
+a newer copy into its output tooling directory and prefer Firefox
+cookies when available.
+
+This is intended to expose capability boundaries across very different
+video shapes, not to claim that the pack can fully decompile arbitrary
+videos yet.
+
 Install the skill pack into another repo:
 
 ```bash
