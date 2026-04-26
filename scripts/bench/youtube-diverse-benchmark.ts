@@ -20,6 +20,11 @@ interface BenchmarkEntry {
   category: string;
   query: string;
   expectedFit: "high" | "medium" | "low";
+  videoId?: string;
+  url?: string;
+  channelContains?: string;
+  titleContains?: string;
+  resolvedAt?: string;
   startSeconds?: number;
   clipSeconds?: number;
 }
@@ -30,6 +35,7 @@ interface ResolvedVideo {
   title: string;
   channel?: string;
   durationSeconds?: number;
+  resolutionMode: "pinned-url" | "pinned-video-id" | "query-search";
 }
 
 interface BenchmarkConfig {
@@ -51,6 +57,7 @@ interface BenchmarkCaseReport {
   title?: string;
   url?: string;
   channel?: string;
+  resolutionMode?: ResolvedVideo["resolutionMode"];
   sourceDurationSeconds?: number;
   startSeconds: number;
   clipSeconds: number;
@@ -61,6 +68,12 @@ interface BenchmarkCaseReport {
   sampleSizeBytes?: number;
   appNames: string[];
   views: string[];
+  textDominance?: {
+    likelyNarrationDominated: boolean;
+    dominantRegion?: "top" | "middle" | "bottom" | "mixed";
+    narrationLikeLineShare: number;
+    narrationLikeFrameShare: number;
+  };
   interactionSegments: Array<{
     summary: string;
     transitionKinds: string[];
@@ -83,8 +96,11 @@ interface BenchmarkAggregateReport {
   metrics: {
     withAppNames: number;
     withViews: number;
+    narrationDominatedCases: number;
     withInteractionSegments: number;
+    withMeaningfulInteractionSegments: number;
     withLikelyFlow: number;
+    withMeaningfulLikelyFlow: number;
     withCapabilities: number;
   };
   fitBreakdown: Record<
@@ -95,6 +111,7 @@ interface BenchmarkAggregateReport {
       withAppNames: number;
       withInteractionSegments: number;
       withLikelyFlow: number;
+      withMeaningfulLikelyFlow: number;
     }
   >;
   reports: BenchmarkCaseReport[];
@@ -139,6 +156,10 @@ async function pathExists(path: string) {
 function parseYtDlpYear(version: string) {
   const year = Number(version.trim().split(".")[0]);
   return Number.isFinite(year) ? year : undefined;
+}
+
+function normalizeText(value: string | undefined) {
+  return (value ?? "").toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 async function detectFirefoxCookies() {
@@ -210,33 +231,111 @@ async function runYtDlp(
   });
 }
 
-async function resolveVideo(runtime: YtDlpRuntime, query: string): Promise<ResolvedVideo> {
-  const { stdout } = await runYtDlp(runtime, ["--flat-playlist", "-J", `ytsearch1:${query}`], {
-    maxBuffer: 1024 * 1024 * 8,
+async function inspectVideoTarget(runtime: YtDlpRuntime, target: string): Promise<ResolvedVideo> {
+  const { stdout } = await runYtDlp(runtime, ["--dump-single-json", "--no-warnings", "--skip-download", target], {
+    maxBuffer: 1024 * 1024 * 16,
   });
-  const parsed = JSON.parse(stdout) as { entries?: Array<Record<string, unknown>> };
-  const entry = parsed.entries?.[0];
-  if (!entry) throw new Error(`No video found for query: ${query}`);
-  const id = String(entry.id);
+  const parsed = JSON.parse(stdout) as Record<string, unknown>;
+  const id = String(parsed.id);
   return {
     id,
     url:
-      typeof entry.webpage_url === "string" && entry.webpage_url.length > 0
-        ? entry.webpage_url
+      typeof parsed.webpage_url === "string" && parsed.webpage_url.length > 0
+        ? parsed.webpage_url
         : `https://www.youtube.com/watch?v=${id}`,
-    title: String(entry.title),
+    title: String(parsed.title),
     channel:
-      typeof entry.channel === "string"
-        ? entry.channel
-        : typeof entry.uploader === "string"
-          ? entry.uploader
+      typeof parsed.channel === "string"
+        ? parsed.channel
+        : typeof parsed.uploader === "string"
+          ? parsed.uploader
           : undefined,
     durationSeconds:
-      typeof entry.duration === "number"
-        ? entry.duration
-        : entry.duration
-          ? Number(entry.duration)
+      typeof parsed.duration === "number"
+        ? parsed.duration
+        : parsed.duration
+          ? Number(parsed.duration)
           : undefined,
+    resolutionMode: target.includes("watch?v=") ? "pinned-url" : "pinned-video-id",
+  };
+}
+
+function scoreSearchCandidate(entry: BenchmarkEntry, candidate: Record<string, unknown>) {
+  let score = 0;
+  const title = normalizeText(typeof candidate.title === "string" ? candidate.title : undefined);
+  const channel = normalizeText(
+    typeof candidate.channel === "string"
+      ? candidate.channel
+      : typeof candidate.uploader === "string"
+        ? candidate.uploader
+        : undefined,
+  );
+  const titleContains = normalizeText(entry.titleContains);
+  const channelContains = normalizeText(entry.channelContains);
+  const durationSeconds =
+    typeof candidate.duration === "number"
+      ? candidate.duration
+      : candidate.duration
+        ? Number(candidate.duration)
+        : undefined;
+  const neededDuration = (entry.startSeconds ?? 0) + (entry.clipSeconds ?? 75);
+
+  if (titleContains && title.includes(titleContains)) score += 8;
+  if (channelContains && channel.includes(channelContains)) score += 8;
+
+  const queryTokens = normalizeText(entry.query)
+    .split(/\s+/)
+    .filter((token) => token.length >= 4);
+  score += queryTokens.filter((token) => title.includes(token)).length;
+
+  if (typeof durationSeconds === "number") {
+    if (durationSeconds >= neededDuration + 10) score += 2;
+    else score -= 6;
+    if (durationSeconds > 60 * 60 * 2) score -= 3;
+  }
+
+  if (/\b(full course|100 days|movie|compilation)\b/i.test(title)) score -= 3;
+  if (entry.expectedFit === "high" && /\b(highlights|live|concert|performance)\b/i.test(title)) score -= 4;
+
+  return score;
+}
+
+async function resolveVideo(runtime: YtDlpRuntime, entry: BenchmarkEntry): Promise<ResolvedVideo> {
+  if (entry.url) {
+    return inspectVideoTarget(runtime, entry.url);
+  }
+  if (entry.videoId) {
+    return inspectVideoTarget(runtime, `https://www.youtube.com/watch?v=${entry.videoId}`);
+  }
+
+  const { stdout } = await runYtDlp(runtime, ["--flat-playlist", "-J", `ytsearch5:${entry.query}`], {
+    maxBuffer: 1024 * 1024 * 8,
+  });
+  const parsed = JSON.parse(stdout) as { entries?: Array<Record<string, unknown>> };
+  const candidate = [...(parsed.entries ?? [])]
+    .sort((left, right) => scoreSearchCandidate(entry, right) - scoreSearchCandidate(entry, left))[0];
+  if (!candidate) throw new Error(`No video found for query: ${entry.query}`);
+  const id = String(candidate.id);
+  return {
+    id,
+    url:
+      typeof candidate.webpage_url === "string" && candidate.webpage_url.length > 0
+        ? candidate.webpage_url
+        : `https://www.youtube.com/watch?v=${id}`,
+    title: String(candidate.title),
+    channel:
+      typeof candidate.channel === "string"
+        ? candidate.channel
+        : typeof candidate.uploader === "string"
+          ? candidate.uploader
+          : undefined,
+    durationSeconds:
+      typeof candidate.duration === "number"
+        ? candidate.duration
+        : candidate.duration
+          ? Number(candidate.duration)
+          : undefined,
+    resolutionMode: "query-search",
   };
 }
 
@@ -321,10 +420,30 @@ function scoreNotes(report: BenchmarkCaseReport) {
   if (report.expectedFit === "high" && report.appNames.length === 0) {
     notes.push("High-fit sample underperformed for UI understanding.");
   }
+  if (report.textDominance?.likelyNarrationDominated) {
+    notes.push("OCR appears narration/subtitle-dominated, so label extraction is likely low-signal.");
+  }
+  if (report.likelyFlow.length > 0 && !hasMeaningfulLikelyFlow(report)) {
+    notes.push("Flow output only showed generic screen-change jumps, so it was not counted as meaningful flow success.");
+  }
+  if (report.interactionSegments.length > 0 && !hasMeaningfulInteractionSegments(report)) {
+    notes.push("Interaction segments were present, but all segment transitions were generic screen-change labels.");
+  }
   if (report.expectedFit === "low" && report.likelyFlow.length > 0) {
     notes.push("Low-fit sample still produced structured flow output.");
   }
   return notes;
+}
+
+function hasMeaningfulLikelyFlow(report: Pick<BenchmarkCaseReport, "interactionSegments" | "likelyFlow">) {
+  if (report.interactionSegments.some((segment) => segment.transitionKinds.some((kind) => kind !== "screen-change"))) {
+    return true;
+  }
+  return report.likelyFlow.some((line) => /\b(state-change|scroll-change|dialog-change)\b/.test(line));
+}
+
+function hasMeaningfulInteractionSegments(report: Pick<BenchmarkCaseReport, "interactionSegments">) {
+  return report.interactionSegments.some((segment) => segment.transitionKinds.some((kind) => kind !== "screen-change"));
 }
 
 function renderMarkdown(aggregate: BenchmarkAggregateReport) {
@@ -339,14 +458,25 @@ function renderMarkdown(aggregate: BenchmarkAggregateReport) {
   }
   lines.push(`- App names recovered: ${aggregate.metrics.withAppNames}/${aggregate.successCount}`);
   lines.push(`- Views recovered: ${aggregate.metrics.withViews}/${aggregate.successCount}`);
+  lines.push(`- Narration-dominated cases: ${aggregate.metrics.narrationDominatedCases}/${aggregate.successCount}`);
   lines.push(`- Interaction segments recovered: ${aggregate.metrics.withInteractionSegments}/${aggregate.successCount}`);
+  lines.push(
+    `- Meaningful interaction segments recovered: ${aggregate.metrics.withMeaningfulInteractionSegments}/${aggregate.successCount} ` +
+      "(generic all-screen-change segments excluded)",
+  );
   lines.push(`- Likely flow recovered: ${aggregate.metrics.withLikelyFlow}/${aggregate.successCount}`);
+  lines.push(
+    `- Meaningful likely flow recovered: ${aggregate.metrics.withMeaningfulLikelyFlow}/${aggregate.successCount} ` +
+      "(generic all-screen-change flows excluded)",
+  );
   lines.push("");
   lines.push("## Fit Breakdown");
   lines.push("");
   for (const [fit, stats] of Object.entries(aggregate.fitBreakdown)) {
     lines.push(
-      `- ${fit}: ${stats.ok}/${stats.total} ok, app names ${stats.withAppNames}, segments ${stats.withInteractionSegments}, flow ${stats.withLikelyFlow}`,
+      `- ${fit}: ${stats.ok}/${stats.total} ok, app names ${stats.withAppNames}, ` +
+        `segments ${stats.withInteractionSegments}, flow ${stats.withLikelyFlow}, ` +
+        `meaningful flow ${stats.withMeaningfulLikelyFlow}`,
     );
   }
   lines.push("");
@@ -358,6 +488,7 @@ function renderMarkdown(aggregate: BenchmarkAggregateReport) {
     lines.push(`- Title: ${report.title ?? "unresolved"}`);
     lines.push(`- URL: ${report.url ?? "unresolved"}`);
     if (report.channel) lines.push(`- Channel: ${report.channel}`);
+    if (report.resolutionMode) lines.push(`- Resolution mode: ${report.resolutionMode}`);
     lines.push(`- Start seconds: ${report.startSeconds}`);
     lines.push(`- Clip seconds: ${report.clipSeconds}`);
     if (typeof report.elapsedSeconds === "number") lines.push(`- Elapsed seconds: ${report.elapsedSeconds}`);
@@ -370,6 +501,11 @@ function renderMarkdown(aggregate: BenchmarkAggregateReport) {
     }
     lines.push(`- App names: ${report.appNames.join(", ") || "none"}`);
     lines.push(`- Views: ${report.views.join(", ") || "none"}`);
+    if (report.textDominance) {
+      lines.push(
+        `- Text dominance: narration=${report.textDominance.likelyNarrationDominated}, region=${report.textDominance.dominantRegion ?? "mixed"}, line share=${report.textDominance.narrationLikeLineShare}`,
+      );
+    }
     lines.push(`- Interaction segments: ${report.interactionSegments.length}`);
     for (const segment of report.interactionSegments.slice(0, 3)) {
       lines.push(`  - ${segment.summary}`);
@@ -391,9 +527,9 @@ function renderMarkdown(aggregate: BenchmarkAggregateReport) {
 function buildAggregateReport(config: BenchmarkConfig, reports: BenchmarkCaseReport[]): BenchmarkAggregateReport {
   const okReports = reports.filter((report) => report.status === "ok");
   const fitBreakdown: BenchmarkAggregateReport["fitBreakdown"] = {
-    high: { total: 0, ok: 0, withAppNames: 0, withInteractionSegments: 0, withLikelyFlow: 0 },
-    medium: { total: 0, ok: 0, withAppNames: 0, withInteractionSegments: 0, withLikelyFlow: 0 },
-    low: { total: 0, ok: 0, withAppNames: 0, withInteractionSegments: 0, withLikelyFlow: 0 },
+    high: { total: 0, ok: 0, withAppNames: 0, withInteractionSegments: 0, withLikelyFlow: 0, withMeaningfulLikelyFlow: 0 },
+    medium: { total: 0, ok: 0, withAppNames: 0, withInteractionSegments: 0, withLikelyFlow: 0, withMeaningfulLikelyFlow: 0 },
+    low: { total: 0, ok: 0, withAppNames: 0, withInteractionSegments: 0, withLikelyFlow: 0, withMeaningfulLikelyFlow: 0 },
   };
 
   for (const report of reports) {
@@ -404,6 +540,7 @@ function buildAggregateReport(config: BenchmarkConfig, reports: BenchmarkCaseRep
     if (report.appNames.length > 0) bucket.withAppNames += 1;
     if (report.interactionSegments.length > 0) bucket.withInteractionSegments += 1;
     if (report.likelyFlow.length > 0) bucket.withLikelyFlow += 1;
+    if (hasMeaningfulLikelyFlow(report)) bucket.withMeaningfulLikelyFlow += 1;
   }
 
   const averageElapsedSeconds =
@@ -427,8 +564,11 @@ function buildAggregateReport(config: BenchmarkConfig, reports: BenchmarkCaseRep
     metrics: {
       withAppNames: okReports.filter((report) => report.appNames.length > 0).length,
       withViews: okReports.filter((report) => report.views.length > 0).length,
+      narrationDominatedCases: okReports.filter((report) => report.textDominance?.likelyNarrationDominated).length,
       withInteractionSegments: okReports.filter((report) => report.interactionSegments.length > 0).length,
+      withMeaningfulInteractionSegments: okReports.filter((report) => hasMeaningfulInteractionSegments(report)).length,
       withLikelyFlow: okReports.filter((report) => report.likelyFlow.length > 0).length,
+      withMeaningfulLikelyFlow: okReports.filter((report) => hasMeaningfulLikelyFlow(report)).length,
       withCapabilities: okReports.filter((report) => report.likelyCapabilities.length > 0).length,
     },
     fitBreakdown,
@@ -453,7 +593,7 @@ async function run() {
     const startedAt = Date.now();
 
     try {
-      const resolved = await resolveVideo(ytDlpRuntime, entry.query);
+      const resolved = await resolveVideo(ytDlpRuntime, entry);
       const downloadPath = await downloadVideo(ytDlpRuntime, resolved.url, caseDir);
       const samplePath = join(caseDir, "sample.mp4");
       await clipVideo(downloadPath, samplePath, entry.startSeconds ?? 0, entry.clipSeconds ?? config.clipSeconds);
@@ -482,6 +622,7 @@ async function run() {
         title: resolved.title,
         url: resolved.url,
         channel: resolved.channel,
+        resolutionMode: resolved.resolutionMode,
         sourceDurationSeconds: resolved.durationSeconds,
         startSeconds: entry.startSeconds ?? 0,
         clipSeconds: entry.clipSeconds ?? config.clipSeconds,
@@ -492,6 +633,7 @@ async function run() {
         sampleSizeBytes: sampleStat.size,
         appNames: summary.manifest.appNames,
         views: summary.manifest.views,
+        textDominance: summary.manifest.textDominance,
         interactionSegments: summary.manifest.interactionSegments.map((segment) => ({
           summary: segment.summary,
           transitionKinds: segment.transitionKinds,

@@ -4,6 +4,10 @@
     "category": "desktop-tutorial",
     "query": "windows wifi tutorial",
     "expectedFit": "high",
+    "videoId": "0_PdYRrdJe8",
+    "channelContains": "fordummies",
+    "titleContains": "connect to the internet",
+    "resolvedAt": "2026-04-26",
     "startSeconds": 60,
     "clipSeconds": 75
   },
@@ -12,6 +16,10 @@
     "category": "software-walkthrough",
     "query": "papercut printing tutorial",
     "expectedFit": "high",
+    "videoId": "fi75T4uDYlg",
+    "channelContains": "papercut",
+    "titleContains": "print deploy",
+    "resolvedAt": "2026-04-26",
     "startSeconds": 120,
     "clipSeconds": 75
   },
@@ -20,6 +28,10 @@
     "category": "productivity-software",
     "query": "google workspace tutorial for beginners",
     "expectedFit": "high",
+    "videoId": "FwT6_JFAk5Y",
+    "channelContains": "itgenius",
+    "titleContains": "google workspace beginners guide",
+    "resolvedAt": "2026-04-26",
     "startSeconds": 90,
     "clipSeconds": 75
   },
@@ -28,6 +40,10 @@
     "category": "gameplay",
     "query": "minecraft survival gameplay",
     "expectedFit": "medium",
+    "videoId": "CzNqlkAP-AQ",
+    "channelContains": "reytgood",
+    "titleContains": "minecraft survival",
+    "resolvedAt": "2026-04-26",
     "clipSeconds": 75
   },
   {
@@ -35,6 +51,10 @@
     "category": "cooking",
     "query": "how to make an omelette",
     "expectedFit": "low",
+    "videoId": "ixpYIgHlU60",
+    "channelContains": "casual cooking",
+    "titleContains": "make an omelette",
+    "resolvedAt": "2026-04-26",
     "clipSeconds": 75
   },
   {
@@ -42,6 +62,10 @@
     "category": "travel-vlog",
     "query": "tokyo travel vlog",
     "expectedFit": "low",
+    "videoId": "He3YguJA43E",
+    "channelContains": "kristina",
+    "titleContains": "days in tokyo",
+    "resolvedAt": "2026-04-26",
     "clipSeconds": 75
   },
   {
@@ -49,6 +73,10 @@
     "category": "sports-highlights",
     "query": "soccer highlights",
     "expectedFit": "low",
+    "videoId": "4AySiz3exJQ",
+    "channelContains": "stan sport football",
+    "titleContains": "highlights",
+    "resolvedAt": "2026-04-26",
     "clipSeconds": 75
   },
   {
@@ -56,6 +84,10 @@
     "category": "music-performance",
     "query": "live piano performance",
     "expectedFit": "low",
+    "videoId": "NXD-WJYtkyc",
+    "channelContains": "ludovico einaudi",
+    "titleContains": "live from the steve jobs theatre",
+    "resolvedAt": "2026-04-26",
     "clipSeconds": 75
   },
   {
@@ -63,6 +95,10 @@
     "category": "talk",
     "query": "ted talk productivity",
     "expectedFit": "medium",
+    "videoId": "T4CB5RPbtCk",
+    "channelContains": "ted",
+    "titleContains": "boosting your productivity",
+    "resolvedAt": "2026-04-26",
     "clipSeconds": 75
   },
   {
@@ -70,6 +106,10 @@
     "category": "animals",
     "query": "cute cat compilation",
     "expectedFit": "low",
+    "videoId": "3URtTIdnXIk",
+    "channelContains": "the pet collective",
+    "titleContains": "cats are too funny",
+    "resolvedAt": "2026-04-26",
     "clipSeconds": 75
   }
 ]

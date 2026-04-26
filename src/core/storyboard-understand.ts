@@ -50,6 +50,14 @@ interface SummaryClaim {
   }>;
 }
 
+interface TextDominanceSummary {
+  likelyNarrationDominated: boolean;
+  narrationLikeLineShare: number;
+  narrationLikeFrameShare: number;
+  dominantRegion?: "top" | "middle" | "bottom" | "mixed";
+  notes: string[];
+}
+
 export interface StoryboardSummaryManifest {
   schemaVersion: 1;
   createdAt: string;
@@ -77,6 +85,7 @@ export interface StoryboardSummaryManifest {
   likelyFlow: string[];
   likelyCapabilities: SummaryClaim[];
   openQuestions: string[];
+  textDominance: TextDominanceSummary;
 }
 
 const CAPABILITY_PATTERNS: Array<{ claim: string; patterns: RegExp[] }> = [
@@ -449,6 +458,80 @@ function buildClaims(frames: OcrFrame[]): SummaryClaim[] {
   return claims;
 }
 
+const NARRATION_LIKE_HINTS = [
+  /\b(here's how|here is how|great question|you're all set|if you have any questions|just follow|follow these simple steps)\b/i,
+  /\b(step\s+\d+|step one|step two|step three|step four|step five)\b/i,
+  /\b(sign in|log in|connect|access|navigate|click|select|open|press|enter|type|choose|tap|help|ask)\b/i,
+];
+
+function isNarrationLikeLine(value: string): boolean {
+  const cleaned = cleanDisplayLine(value);
+  if (!cleaned) return false;
+  if (cleaned.length < 12) return false;
+  if (NARRATION_LIKE_HINTS.some((pattern) => pattern.test(cleaned))) return true;
+  if (/[.?!]/.test(cleaned)) return true;
+  const wordCount = cleaned.split(/\s+/).filter(Boolean).length;
+  return wordCount >= 10 && /[a-z]/i.test(cleaned) && /\b(i|you|we|how|what|when|where|why|can|will|should)\b/i.test(cleaned);
+}
+
+function buildTextDominanceSummary(frames: OcrFrame[]): TextDominanceSummary {
+  let narrationLikeLineCount = 0;
+  let narrationLikeFrameCount = 0;
+  let totalLineCount = 0;
+  const regionCounts = {
+    top: 0,
+    middle: 0,
+    bottom: 0,
+  } satisfies Record<"top" | "middle" | "bottom", number>;
+
+  for (const frame of frames) {
+    let frameNarrationCount = 0;
+    for (const line of frame.lines) {
+      totalLineCount += 1;
+      if (line.region) regionCounts[line.region] += 1;
+      if (!isNarrationLikeLine(line.text)) continue;
+      narrationLikeLineCount += 1;
+      frameNarrationCount += 1;
+    }
+    if (frameNarrationCount >= 2 || frameNarrationCount / Math.max(1, frame.lines.length) >= 0.5) {
+      narrationLikeFrameCount += 1;
+    }
+  }
+
+  const narrationLikeLineShare = narrationLikeLineCount / Math.max(1, totalLineCount);
+  const narrationLikeFrameShare = narrationLikeFrameCount / Math.max(1, frames.length);
+  const dominantRegionEntries = Object.entries(regionCounts).sort((left, right) => right[1] - left[1]);
+  const [dominantRegion, dominantCount] = dominantRegionEntries[0] ?? ["mixed", 0];
+  const dominantRegionValue =
+    dominantCount > 0 && dominantCount / Math.max(1, narrationLikeLineCount) >= 0.5
+      ? (dominantRegion as "top" | "middle" | "bottom")
+      : "mixed";
+  const likelyNarrationDominated = narrationLikeLineShare >= 0.4 && narrationLikeFrameShare >= 0.5;
+  const notes: string[] = [];
+
+  if (likelyNarrationDominated) {
+    notes.push(
+      `Narration-like OCR accounts for ${Math.round(narrationLikeLineShare * 100)}% of lines across ${narrationLikeFrameCount}/${frames.length} frames.`,
+    );
+  } else if (narrationLikeLineShare >= 0.2) {
+    notes.push(`Some OCR lines read like narration or subtitles (${Math.round(narrationLikeLineShare * 100)}% of lines).`);
+  } else {
+    notes.push("OCR is mostly short UI labels rather than sentence-like narration.");
+  }
+
+  if (dominantRegionValue !== "mixed") {
+    notes.push(`Narration-like text is concentrated in the ${dominantRegionValue} region.`);
+  }
+
+  return {
+    likelyNarrationDominated,
+    narrationLikeLineShare: Number(narrationLikeLineShare.toFixed(3)),
+    narrationLikeFrameShare: Number(narrationLikeFrameShare.toFixed(3)),
+    dominantRegion: dominantRegionValue,
+    notes,
+  };
+}
+
 function buildSamplingSummary(
   manifest: OcrManifest,
   fallback: StoryboardManifestFallback | null,
@@ -673,6 +756,7 @@ export async function understandStoryboard(input: StoryboardUnderstandRequest) {
     interactionSegments: buildInteractionSegments(transitions, manifest.frames, appNames),
     likelyFlow: buildLikelyFlow(transitions),
     likelyCapabilities: buildClaims(manifest.frames),
+    textDominance: buildTextDominanceSummary(manifest.frames),
     openQuestions: [
       "What exact user actions happened between these storyboard frames?",
       "Where does the video show local state changes versus full screen changes?",

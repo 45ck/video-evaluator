@@ -207,3 +207,108 @@ test("understandStoryboard favors persistent shell labels and specific page head
   assert.ok(!written.views.includes("Getting Started"));
   assert.deepEqual(written.interactionSegments, []);
 });
+
+test("understandStoryboard flags narration-dominated OCR from frame text alone", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "video-evaluator-understand-narration-"));
+  const storyboardDir = join(dir, "storyboard");
+  await mkdir(storyboardDir, { recursive: true });
+  await writeFile(
+    join(dir, "storyboard.ocr.json"),
+    JSON.stringify(
+      {
+        storyboardDir,
+        videoPath: "/tmp/narration.mp4",
+        frames: [
+          {
+            index: 1,
+            timestampSeconds: 0,
+            lines: [
+              { text: "How can I help you today?", confidence: 92, region: "middle" },
+              { text: "Ask me anything about school technology", confidence: 91, region: "middle" },
+              { text: "Here's how to connect to WiFi on your Windows device.", confidence: 95, region: "bottom" },
+            ],
+          },
+          {
+            index: 2,
+            timestampSeconds: 8,
+            lines: [
+              { text: "Step 1: Open WiFi Settings", confidence: 94, region: "top" },
+              { text: "Click the WiFi icon in the taskbar.", confidence: 93, region: "middle" },
+              { text: "Select the network and enter the password.", confidence: 92, region: "bottom" },
+            ],
+          },
+          {
+            index: 3,
+            timestampSeconds: 16,
+            lines: [
+              { text: "You're all set! If you have any issues, feel free to ask for help.", confidence: 94, region: "bottom" },
+              { text: "Great question!", confidence: 90, region: "middle" },
+              { text: "Step 2: Continue to the next screen", confidence: 89, region: "bottom" },
+            ],
+          },
+        ],
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+
+  const result = await understandStoryboard({
+    ocrPath: join(dir, "storyboard.ocr.json"),
+  });
+  const written = JSON.parse(await readFile(result.outputPath, "utf8"));
+
+  assert.equal(written.textDominance.likelyNarrationDominated, true);
+  assert.ok(written.textDominance.narrationLikeLineShare >= 0.4);
+  assert.ok(written.textDominance.narrationLikeFrameShare >= 0.5);
+  assert.match(written.textDominance.notes[0], /Narration-like OCR accounts for/i);
+});
+
+test("understandStoryboard keeps UI-led OCR below the narration-dominated threshold", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "video-evaluator-understand-ui-led-"));
+  const storyboardDir = join(dir, "storyboard");
+  await mkdir(storyboardDir, { recursive: true });
+  await writeFile(
+    join(dir, "storyboard.ocr.json"),
+    JSON.stringify(
+      {
+        storyboardDir,
+        videoPath: "/tmp/ui-led.mp4",
+        frames: [
+          {
+            index: 1,
+            timestampSeconds: 0,
+            lines: [
+              { text: "ICT Visit Tracker", confidence: 96, region: "top" },
+              { text: "Dashboard", confidence: 95, region: "top" },
+              { text: "ICT Queue", confidence: 94, region: "middle" },
+              { text: "Sign out", confidence: 93, region: "top" },
+            ],
+          },
+          {
+            index: 2,
+            timestampSeconds: 8,
+            lines: [
+              { text: "Manage incoming students", confidence: 95, region: "middle" },
+              { text: "Returned Today", confidence: 94, region: "middle" },
+              { text: "Refresh", confidence: 92, region: "bottom" },
+            ],
+          },
+        ],
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+
+  const result = await understandStoryboard({
+    ocrPath: join(dir, "storyboard.ocr.json"),
+  });
+  const written = JSON.parse(await readFile(result.outputPath, "utf8"));
+
+  assert.equal(written.textDominance.likelyNarrationDominated, false);
+  assert.ok(written.textDominance.narrationLikeLineShare < 0.4);
+  assert.ok(written.textDominance.notes.some((note: string) => /mostly short UI labels/i.test(note)));
+});

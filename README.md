@@ -169,8 +169,18 @@ and writes:
 - aggregate `benchmark.report.json`
 - human-readable `benchmark.report.md`
 
+The aggregate benchmark report distinguishes raw flow recovery from
+meaningful flow recovery. Cases that only produce generic
+`screen-change` transitions are still recorded, but they are not counted
+as meaningful interaction/flow success.
+
 Manifest entries can set `startSeconds` to skip title-card/introduction
 sections and target the real product segment of a video.
+
+For stable benchmarks, prefer pinning `videoId` plus optional
+`channelContains` / `titleContains` in the manifest. Query-only entries
+are useful for exploration, but they should be treated as provisional
+because live YouTube ranking can drift.
 
 If the machine has an old global `yt-dlp`, the benchmark will bootstrap
 a newer copy into its output tooling directory and prefer Firefox
