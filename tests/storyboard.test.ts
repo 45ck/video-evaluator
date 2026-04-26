@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   buildHybridTimestamps,
   buildUniformTimestamps,
+  inferSameScreenProbeScore,
 } from "../src/core/storyboard.js";
 
 test("buildUniformTimestamps returns evenly spaced timestamps", () => {
@@ -29,4 +30,37 @@ test("buildHybridTimestamps dedupes dense candidate clusters and still fills the
   assert.ok(timestamps.some((value) => Math.abs(value - 5) < 0.25));
   assert.ok(timestamps.some((value) => Math.abs(value - 20) < 0.25));
   assert.ok(timestamps.some((value) => Math.abs(value - 35) < 0.25));
+});
+
+test("inferSameScreenProbeScore favors local changes when top chrome stays stable", () => {
+  const score = inferSameScreenProbeScore({
+    overallDiffPercent: 0.08,
+    topDiffPercent: 0.01,
+    middleDiffPercent: 0.09,
+    bottomDiffPercent: 0.03,
+  });
+  assert.ok(score > 0.3);
+});
+
+test("inferSameScreenProbeScore rejects hard cuts even when lower regions changed", () => {
+  const score = inferSameScreenProbeScore({
+    overallDiffPercent: 0.24,
+    topDiffPercent: 0.02,
+    middleDiffPercent: 0.14,
+    bottomDiffPercent: 0.11,
+  });
+  assert.equal(score, 0);
+});
+
+test("buildHybridTimestamps can prioritize scored same-screen candidates", () => {
+  const timestamps = buildHybridTimestamps(80, 6, [
+    { timestampSeconds: 12, source: "scene-change", score: 0.4 },
+    { timestampSeconds: 18, source: "same-screen-change", score: 0.95 },
+    { timestampSeconds: 19, source: "same-screen-change", score: 0.92 },
+    { timestampSeconds: 44, source: "scene-change", score: 0.5 },
+    { timestampSeconds: 61, source: "same-screen-change", score: 0.9 },
+  ]);
+  assert.equal(timestamps.length, 6);
+  assert.ok(timestamps.some((value) => Math.abs(value - 18) < 0.01));
+  assert.ok(timestamps.some((value) => Math.abs(value - 61) < 0.01));
 });

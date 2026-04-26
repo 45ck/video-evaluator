@@ -12,7 +12,7 @@ This skill owns:
 
 - probing video duration with `ffprobe`
 - extracting frames with `ffmpeg`
-- optional hybrid sampling that biases some frames toward likely scene changes
+- optional hybrid sampling that biases some frames toward likely scene changes and same-screen local UI updates
 - writing `storyboard.manifest.json`
 - carrying per-frame sampling reasons into the manifest when available
 - giving downstream reviewers stable image artifacts to inspect

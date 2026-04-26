@@ -1,8 +1,10 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { tmpdir } from "node:os";
 import type { StoryboardExtractRequest } from "./schemas.js";
+import { diffPngFiles, diffPngRegionFiles } from "./image-diff.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -31,6 +33,12 @@ export interface StoryboardManifest {
 interface PlannedStoryboardFrame {
   timestampSeconds: number;
   samplingReason: NonNullable<StoryboardFrame["samplingReason"]>;
+}
+
+interface ChangeCandidate {
+  timestampSeconds: number;
+  source: "scene-change" | "same-screen-change";
+  score: number;
 }
 
 async function probeDuration(videoPath: string): Promise<number> {
@@ -77,6 +85,15 @@ function pickEvenlySpacedValues(values: number[], count: number): number[] {
   });
 }
 
+function pickEvenlySpacedEntries<T>(values: T[], count: number): T[] {
+  if (count <= 0 || values.length === 0) return [];
+  if (count >= values.length) return [...values];
+  return Array.from({ length: count }, (_, index) => {
+    const position = Math.round((index * (values.length - 1)) / Math.max(1, count - 1));
+    return values[position];
+  });
+}
+
 function dedupeSortedTimestamps(values: number[]): number[] {
   return values.filter((value, index) => index === 0 || Math.abs(value - values[index - 1]) > 0.001);
 }
@@ -94,18 +111,83 @@ function nearestDistanceSeconds(value: number, candidates: number[]): number | u
   }, undefined as number | undefined);
 }
 
+function normalizeCandidates(
+  durationSeconds: number,
+  candidates: Array<number | ChangeCandidate>,
+): ChangeCandidate[] {
+  return dedupeSortedTimestamps(
+    candidates
+      .map((candidate) =>
+        typeof candidate === "number"
+          ? { timestampSeconds: candidate, source: "scene-change" as const, score: 1 }
+          : candidate,
+      )
+      .filter((candidate) => Number.isFinite(candidate.timestampSeconds))
+      .filter((candidate) => candidate.timestampSeconds > 0 && candidate.timestampSeconds < durationSeconds)
+      .sort((left, right) => left.timestampSeconds - right.timestampSeconds)
+      .map((candidate) => candidate.timestampSeconds),
+  ).map((timestampSeconds) => {
+    const matching = candidates
+      .map((candidate) =>
+        typeof candidate === "number"
+          ? { timestampSeconds: candidate, source: "scene-change" as const, score: 1 }
+          : candidate,
+      )
+      .filter((candidate) => Math.abs(candidate.timestampSeconds - timestampSeconds) <= 0.001)
+      .sort((left, right) => right.score - left.score);
+    return matching[0] ?? {
+      timestampSeconds,
+      source: "scene-change" as const,
+      score: 1,
+    };
+  });
+}
+
+export function inferSameScreenProbeScore(input: {
+  overallDiffPercent: number;
+  topDiffPercent: number;
+  middleDiffPercent: number;
+  bottomDiffPercent: number;
+}): number {
+  const lowerRegionDelta = Math.max(input.middleDiffPercent, input.bottomDiffPercent);
+  const topStable = input.topDiffPercent <= 0.045;
+  const localChangeStrength = lowerRegionDelta - input.topDiffPercent;
+  const notHardCut = input.overallDiffPercent <= 0.18;
+  if (!topStable || !notHardCut || localChangeStrength <= 0.015) {
+    return 0;
+  }
+  return Number(
+    Math.max(0, Math.min(1, localChangeStrength * 8 + lowerRegionDelta * 1.5 - input.overallDiffPercent)).toFixed(4),
+  );
+}
+
+function selectCandidatePeaks(
+  candidates: ChangeCandidate[],
+  maxCount: number,
+  minSpacingSeconds: number,
+): ChangeCandidate[] {
+  const chosen: ChangeCandidate[] = [];
+  const sorted = [...candidates].sort((left, right) => {
+    if (right.score !== left.score) return right.score - left.score;
+    return left.timestampSeconds - right.timestampSeconds;
+  });
+  for (const candidate of sorted) {
+    if (chosen.length >= maxCount) break;
+    if (canAddTimestamp(candidate.timestampSeconds, chosen.map((entry) => entry.timestampSeconds), minSpacingSeconds)) {
+      chosen.push(candidate);
+    }
+  }
+  return chosen.sort((left, right) => left.timestampSeconds - right.timestampSeconds);
+}
+
 function buildHybridFramePlan(
   durationSeconds: number,
   frameCount: number,
-  candidateTimestamps: number[],
+  candidateInput: Array<number | ChangeCandidate>,
 ): PlannedStoryboardFrame[] {
   const uniform = buildUniformTimestamps(durationSeconds, frameCount);
   const minSpacingSeconds = Math.max(durationSeconds / Math.max(frameCount * 6, 1), 0.6);
-  const normalizedCandidates = dedupeSortedTimestamps(
-    candidateTimestamps
-      .filter((value) => Number.isFinite(value) && value > 0 && value < durationSeconds)
-      .sort((left, right) => left - right),
-  );
+  const normalizedCandidates = normalizeCandidates(durationSeconds, candidateInput);
 
   if (normalizedCandidates.length === 0) {
     return annotateUniformFrames(uniform);
@@ -115,7 +197,8 @@ function buildHybridFramePlan(
     normalizedCandidates.length,
     Math.max(1, Math.ceil(frameCount / 2)),
   );
-  const prioritizedCandidates = pickEvenlySpacedValues(normalizedCandidates, candidateBudget);
+  const prioritizedCandidates = selectCandidatePeaks(normalizedCandidates, candidateBudget, minSpacingSeconds);
+  const spreadCandidates = pickEvenlySpacedEntries(normalizedCandidates, candidateBudget);
   const fallbackGrid = buildUniformTimestamps(durationSeconds, Math.max(frameCount * 3, frameCount));
   const chosen: PlannedStoryboardFrame[] = [];
   const chosenTimestamps: number[] = [];
@@ -135,7 +218,8 @@ function buildHybridFramePlan(
     }
   };
 
-  addTimestamps(prioritizedCandidates, "change-peak");
+  addTimestamps(prioritizedCandidates.map((candidate) => candidate.timestampSeconds), "change-peak");
+  addTimestamps(spreadCandidates.map((candidate) => candidate.timestampSeconds), "change-peak");
   addTimestamps(uniform, "uniform");
   addTimestamps(fallbackGrid, "coverage-fill");
 
@@ -147,14 +231,14 @@ function buildHybridFramePlan(
 export function buildHybridTimestamps(
   durationSeconds: number,
   frameCount: number,
-  candidateTimestamps: number[],
+  candidateInput: Array<number | ChangeCandidate>,
 ): number[] {
-  return buildHybridFramePlan(durationSeconds, frameCount, candidateTimestamps).map(
+  return buildHybridFramePlan(durationSeconds, frameCount, candidateInput).map(
     (frame) => frame.timestampSeconds,
   );
 }
 
-async function detectChangeTimestamps(videoPath: string, threshold: number): Promise<number[]> {
+async function detectSceneChangeCandidates(videoPath: string, threshold: number): Promise<ChangeCandidate[]> {
   try {
     const { stderr } = await execFileAsync("ffmpeg", [
       "-hide_banner",
@@ -167,12 +251,90 @@ async function detectChangeTimestamps(videoPath: string, threshold: number): Pro
       "null",
       "-",
     ]);
-    return [...stderr.matchAll(/pts_time:([0-9.]+)/g)].map((match) => Number(match[1]));
+    return [...stderr.matchAll(/pts_time:([0-9.]+)/g)].map((match) => ({
+      timestampSeconds: Number(match[1]),
+      source: "scene-change" as const,
+      score: 1,
+    }));
   } catch (error) {
     const stderr = error && typeof error === "object" && "stderr" in error ? String(error.stderr ?? "") : "";
-    const matches = [...stderr.matchAll(/pts_time:([0-9.]+)/g)].map((match) => Number(match[1]));
+    const matches = [...stderr.matchAll(/pts_time:([0-9.]+)/g)].map((match) => ({
+      timestampSeconds: Number(match[1]),
+      source: "scene-change" as const,
+      score: 1,
+    }));
     if (matches.length > 0) return matches;
     return [];
+  }
+}
+
+async function extractProbeFrames(
+  videoPath: string,
+  durationSeconds: number,
+  frameCount: number,
+  tempDir: string,
+): Promise<Array<{ timestampSeconds: number; imagePath: string }>> {
+  const probeFrameCount = Math.min(Math.max(frameCount * 3, 12), 30);
+  const timestamps = buildUniformTimestamps(durationSeconds, probeFrameCount);
+  const frames: Array<{ timestampSeconds: number; imagePath: string }> = [];
+
+  for (const [index, timestampSeconds] of timestamps.entries()) {
+    const imagePath = join(tempDir, `probe-${String(index + 1).padStart(2, "0")}.png`);
+    await execFileAsync("ffmpeg", [
+      "-y",
+      "-ss",
+      String(timestampSeconds),
+      "-i",
+      videoPath,
+      "-frames:v",
+      "1",
+      "-vf",
+      "scale=640:-1,format=gray",
+      imagePath,
+    ]);
+    frames.push({ timestampSeconds, imagePath });
+  }
+
+  return frames;
+}
+
+async function detectSameScreenChangeCandidates(
+  videoPath: string,
+  durationSeconds: number,
+  frameCount: number,
+): Promise<ChangeCandidate[]> {
+  const tempDir = await mkdtemp(join(tmpdir(), "video-evaluator-probe-"));
+  try {
+    const probeFrames = await extractProbeFrames(videoPath, durationSeconds, frameCount, tempDir);
+    const candidates: ChangeCandidate[] = [];
+
+    for (let index = 1; index < probeFrames.length; index += 1) {
+      const previous = probeFrames[index - 1];
+      const current = probeFrames[index];
+      const [overall, top, middle, bottom] = await Promise.all([
+        diffPngFiles(previous.imagePath, current.imagePath),
+        diffPngRegionFiles(previous.imagePath, current.imagePath, { y0: 0, y1: 0.25 }),
+        diffPngRegionFiles(previous.imagePath, current.imagePath, { y0: 0.25, y1: 0.7 }),
+        diffPngRegionFiles(previous.imagePath, current.imagePath, { y0: 0.7, y1: 1 }),
+      ]);
+      const score = inferSameScreenProbeScore({
+        overallDiffPercent: overall.mismatchPercent,
+        topDiffPercent: top.mismatchPercent,
+        middleDiffPercent: middle.mismatchPercent,
+        bottomDiffPercent: bottom.mismatchPercent,
+      });
+      if (score > 0) {
+        candidates.push({
+          timestampSeconds: current.timestampSeconds,
+          source: "same-screen-change",
+          score,
+        });
+      }
+    }
+
+    return candidates;
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
   }
 }
 
@@ -182,13 +344,16 @@ export async function extractStoryboard(input: StoryboardExtractRequest) {
   await mkdir(outputDir, { recursive: true });
 
   const durationSeconds = await probeDuration(videoPath);
-  const detectedChangeTimestamps =
+  const detectedChangeCandidates =
     input.samplingMode === "hybrid"
-      ? await detectChangeTimestamps(videoPath, input.changeThreshold)
+      ? [
+          ...(await detectSceneChangeCandidates(videoPath, input.changeThreshold)),
+          ...(await detectSameScreenChangeCandidates(videoPath, durationSeconds, input.frameCount)),
+        ]
       : [];
   const framePlan =
     input.samplingMode === "hybrid"
-      ? buildHybridFramePlan(durationSeconds, input.frameCount, detectedChangeTimestamps)
+      ? buildHybridFramePlan(durationSeconds, input.frameCount, detectedChangeCandidates)
       : annotateUniformFrames(buildUniformTimestamps(durationSeconds, input.frameCount));
   const frames: StoryboardFrame[] = [];
 
@@ -212,7 +377,10 @@ export async function extractStoryboard(input: StoryboardExtractRequest) {
       samplingReason: plannedFrame.samplingReason,
       nearestChangeDistanceSeconds:
         input.samplingMode === "hybrid"
-          ? nearestDistanceSeconds(timestampSeconds, detectedChangeTimestamps)
+          ? nearestDistanceSeconds(
+              timestampSeconds,
+              detectedChangeCandidates.map((candidate) => candidate.timestampSeconds),
+            )
           : undefined,
     });
   }
@@ -227,7 +395,7 @@ export async function extractStoryboard(input: StoryboardExtractRequest) {
     format: input.format,
     samplingMode: input.samplingMode,
     changeThreshold: input.samplingMode === "hybrid" ? input.changeThreshold : undefined,
-    detectedChangeCount: input.samplingMode === "hybrid" ? detectedChangeTimestamps.length : undefined,
+    detectedChangeCount: input.samplingMode === "hybrid" ? detectedChangeCandidates.length : undefined,
     frames,
   };
 

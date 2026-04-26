@@ -11,6 +11,7 @@ domain-specific generation or QA pipelines. It owns the generic pieces:
 - latest-run discovery
 - storyboard frame extraction
 - hybrid storyboard sampling that can bias frames toward likely scene/change points
+- region-aware probe scoring for same-screen local UI changes
 - OCR over extracted storyboard frames
 - heuristic storyboard understanding from OCR evidence
 - frame-to-frame transition inference from image diffs and OCR/layout deltas
@@ -86,9 +87,10 @@ JSON
 ```
 
 `samplingMode: "hybrid"` keeps the uniform backbone but uses ffmpeg
-scene-change detection to bias some frames toward likely transitions.
-This is still heuristic, but it gives the OCR/transition layers denser
-evidence around UI changes than pure even spacing.
+scene-change detection plus a region-aware probe to bias some frames
+toward likely transitions and same-screen local UI changes. This is
+still heuristic, but it gives the OCR/transition layers denser evidence
+around UI changes than pure even spacing.
 
 The storyboard manifest now includes per-frame `samplingReason` and
 `nearestChangeDistanceSeconds` when that evidence is available.
