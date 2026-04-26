@@ -9,7 +9,7 @@ import { diffPngFiles } from "./image-diff.js";
 
 const execFileAsync = promisify(execFile);
 
-interface OcrFrame {
+export interface TransitionOcrFrame {
   index: number;
   timestampSeconds: number;
   imagePath: string;
@@ -35,7 +35,7 @@ interface OcrFrame {
 interface OcrManifest {
   storyboardDir: string;
   videoPath: string;
-  frames: OcrFrame[];
+  frames: TransitionOcrFrame[];
 }
 
 export interface StoryboardTransition {
@@ -86,7 +86,7 @@ async function readOcrManifest(request: StoryboardTransitionsRequest): Promise<{
   };
 }
 
-function normalizeLines(frame: OcrFrame): string[] {
+function normalizeLines(frame: TransitionOcrFrame): string[] {
   return frame.lines.map((line) => line.text.trim()).filter(Boolean);
 }
 
@@ -94,8 +94,8 @@ function normalizeTextKey(line: string): string {
   return line.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-function lineMap(frame: OcrFrame): Map<string, OcrFrame["lines"][number]> {
-  const map = new Map<string, OcrFrame["lines"][number]>();
+function lineMap(frame: TransitionOcrFrame): Map<string, TransitionOcrFrame["lines"][number]> {
+  const map = new Map<string, TransitionOcrFrame["lines"][number]>();
   for (const line of frame.lines) {
     const key = normalizeTextKey(line.text);
     if (!key || map.has(key)) continue;
@@ -124,7 +124,7 @@ function regionCounts(lines: Array<{ region?: "top" | "middle" | "bottom" }>) {
   );
 }
 
-function getSharedLineInfo(previous: OcrFrame, current: OcrFrame) {
+function getSharedLineInfo(previous: TransitionOcrFrame, current: TransitionOcrFrame) {
   const prevMap = lineMap(previous);
   const currentMap = lineMap(current);
   const sharedKeys = [...prevMap.keys()].filter((key) => currentMap.has(key));
@@ -204,8 +204,8 @@ function inferGenericKind(
 }
 
 function inferTransition(
-  previous: OcrFrame,
-  current: OcrFrame,
+  previous: TransitionOcrFrame,
+  current: TransitionOcrFrame,
   addedLines: string[],
   removedLines: string[],
   visualDiffPercent: number,
@@ -346,6 +346,44 @@ function inferTransition(
   };
 }
 
+export function classifyStoryboardTransition(
+  previous: TransitionOcrFrame,
+  current: TransitionOcrFrame,
+  options: {
+    visualDiffPercent: number;
+    threshold: number;
+  },
+): StoryboardTransition {
+  const prevLines = normalizeLines(previous);
+  const currentLines = normalizeLines(current);
+  const addedLines = setDiff(currentLines, prevLines).slice(0, 12);
+  const removedLines = setDiff(prevLines, currentLines).slice(0, 12);
+  const inferred = inferTransition(
+    previous,
+    current,
+    addedLines,
+    removedLines,
+    options.visualDiffPercent,
+    options.threshold,
+  );
+
+  return {
+    fromFrameIndex: previous.index,
+    toFrameIndex: current.index,
+    fromTimestampSeconds: previous.timestampSeconds,
+    toTimestampSeconds: current.timestampSeconds,
+    visualDiffPercent: options.visualDiffPercent,
+    overlapRatio: inferred.overlapRatio,
+    sharedLineCount: inferred.sharedLineCount,
+    transitionKind: inferred.kind,
+    addedLines,
+    removedLines,
+    inferredTransition: inferred.label,
+    confidence: inferred.confidence,
+    evidence: inferred.evidence,
+  };
+}
+
 export async function inferStoryboardTransitions(input: StoryboardTransitionsRequest) {
   const { ocrPath, manifest } = await readOcrManifest(input);
   const transitions: StoryboardTransition[] = [];
@@ -362,23 +400,13 @@ export async function inferStoryboardTransitions(input: StoryboardTransitionsReq
       const prevImage = await preprocessFrameForDiff(previous.imagePath, tempDir);
       const currentImage = await preprocessFrameForDiff(current.imagePath, tempDir);
       const diff = await diffPngFiles(prevImage, currentImage);
-      const inferred = inferTransition(previous, current, addedLines, removedLines, diff.mismatchPercent, input.threshold);
-
-      transitions.push({
-        fromFrameIndex: previous.index,
-        toFrameIndex: current.index,
-        fromTimestampSeconds: previous.timestampSeconds,
-        toTimestampSeconds: current.timestampSeconds,
+      const transition = classifyStoryboardTransition(previous, current, {
         visualDiffPercent: diff.mismatchPercent,
-        overlapRatio: inferred.overlapRatio,
-        sharedLineCount: inferred.sharedLineCount,
-        transitionKind: inferred.kind,
-        addedLines,
-        removedLines,
-        inferredTransition: inferred.label,
-        confidence: inferred.confidence,
-        evidence: inferred.evidence,
+        threshold: input.threshold,
       });
+      transition.addedLines = addedLines;
+      transition.removedLines = removedLines;
+      transitions.push(transition);
     }
   } finally {
     await rm(tempDir, { recursive: true, force: true });

@@ -20,6 +20,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts",
     "skill-catalog": "node --import tsx scripts/harness/skill-catalog.ts",
     "install-skill-pack": "node --import tsx scripts/harness/install-skill-pack.ts",
     "video-intake": "node --import tsx scripts/harness/video-intake.ts",

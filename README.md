@@ -29,6 +29,7 @@ Current boundary:
 - decent at first-pass OCR-backed product understanding
 - now preserves per-line OCR boxes/regions when the OCR engine exposes them
 - now emits coarse transition kinds such as `screen-change` alongside flow labels
+- now extracts broader app/view/capability hints instead of only one hard-coded demo shape
 - still weak at full-sequence action reconstruction
 - still heuristic, not deep multimodal video understanding
 
@@ -57,6 +58,7 @@ Prerequisites:
 ```bash
 npm install
 npm run build
+npm test
 ```
 
 Review a bundle:

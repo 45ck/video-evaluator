@@ -14,7 +14,10 @@ export { intakeBundle, copySkillPack } from "./core/bundle.js";
 export { diffPngBuffers, diffPngFiles } from "./core/image-diff.js";
 export { extractStoryboard } from "./core/storyboard.js";
 export { ocrStoryboard } from "./core/storyboard-ocr.js";
-export { inferStoryboardTransitions } from "./core/storyboard-transitions.js";
+export {
+  inferStoryboardTransitions,
+  classifyStoryboardTransition,
+} from "./core/storyboard-transitions.js";
 export { understandStoryboard } from "./core/storyboard-understand.js";
 export { runHarnessTool } from "./harness/json-stdio.js";
 export { listSkillCatalog } from "./harness/skill-catalog.js";
