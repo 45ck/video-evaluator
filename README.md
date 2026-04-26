@@ -28,6 +28,10 @@ before other repos depend on it.
 - Maturity: experimental but benchmarked, with explicit low-signal
   reporting instead of pretending weak OCR is semantic proof
 
+![video-evaluator social preview](./assets/social-preview-1280x640.png)
+
+![video-evaluator benchmark snapshot](./assets/benchmark-snapshot.svg)
+
 ## What This Repo Is
 
 This repo is for:

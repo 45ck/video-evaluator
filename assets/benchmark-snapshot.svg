@@ -1,0 +1,64 @@
+<svg width="1280" height="720" viewBox="0 0 1280 720" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1280" y2="720" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#091018"/>
+      <stop offset="1" stop-color="#0E1620"/>
+    </linearGradient>
+    <linearGradient id="cyan" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#6FE7FF"/>
+      <stop offset="1" stop-color="#2FB6D6"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#9CF76B"/>
+      <stop offset="1" stop-color="#4FAE49"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="720" fill="url(#bg)"/>
+  <g opacity="0.08">
+    <path d="M0 60H1280M0 140H1280M0 220H1280M0 300H1280M0 380H1280M0 460H1280M0 540H1280M0 620H1280" stroke="#7DE7FF"/>
+    <path d="M80 0V720M200 0V720M320 0V720M440 0V720M560 0V720M680 0V720M800 0V720M920 0V720M1040 0V720M1160 0V720" stroke="#7DE7FF"/>
+  </g>
+
+  <text x="80" y="92" fill="#6FE7FF" font-family="Arial, Helvetica, sans-serif" font-size="28" letter-spacing="4">BENCHMARK SNAPSHOT</text>
+  <text x="80" y="150" fill="#F4F7FA" font-family="Arial, Helvetica, sans-serif" font-size="60" font-weight="700">YouTube pinned benchmark</text>
+  <text x="80" y="198" fill="#B4C2D0" font-family="Arial, Helvetica, sans-serif" font-size="30">Current honest result: the pipeline runs end to end, but semantic understanding is still weak on public software videos.</text>
+
+  <rect x="80" y="250" width="250" height="150" rx="18" fill="#0F1A25" stroke="#244051"/>
+  <rect x="350" y="250" width="250" height="150" rx="18" fill="#0F1A25" stroke="#244051"/>
+  <rect x="620" y="250" width="250" height="150" rx="18" fill="#0F1A25" stroke="#244051"/>
+  <rect x="890" y="250" width="310" height="150" rx="18" fill="#0F1A25" stroke="#244051"/>
+
+  <text x="108" y="296" fill="#8FA3B8" font-family="Arial, Helvetica, sans-serif" font-size="22" letter-spacing="2">OPERATIONAL SUCCESS</text>
+  <text x="108" y="366" fill="url(#cyan)" filter="url(#glow)" font-family="Arial, Helvetica, sans-serif" font-size="64" font-weight="700">3 / 3</text>
+
+  <text x="378" y="296" fill="#8FA3B8" font-family="Arial, Helvetica, sans-serif" font-size="22" letter-spacing="2">SEMANTIC PASSES</text>
+  <text x="378" y="366" fill="#F4F7FA" font-family="Arial, Helvetica, sans-serif" font-size="64" font-weight="700">0 / 3</text>
+
+  <text x="648" y="296" fill="#8FA3B8" font-family="Arial, Helvetica, sans-serif" font-size="22" letter-spacing="2">LOW-SIGNAL OCR</text>
+  <text x="648" y="366" fill="url(#green)" filter="url(#glow)" font-family="Arial, Helvetica, sans-serif" font-size="64" font-weight="700">3 / 3</text>
+
+  <text x="918" y="296" fill="#8FA3B8" font-family="Arial, Helvetica, sans-serif" font-size="22" letter-spacing="2">MEANINGFUL FLOW</text>
+  <text x="918" y="366" fill="#F4F7FA" font-family="Arial, Helvetica, sans-serif" font-size="64" font-weight="700">2 / 3</text>
+
+  <rect x="80" y="448" width="1120" height="208" rx="22" fill="#0B141D" stroke="#234556"/>
+  <text x="112" y="494" fill="#6FE7FF" font-family="Arial, Helvetica, sans-serif" font-size="24" letter-spacing="3">WHAT THIS MEANS</text>
+
+  <circle cx="122" cy="540" r="5" fill="#6FE7FF"/>
+  <text x="146" y="548" fill="#E8EEF5" font-family="Arial, Helvetica, sans-serif" font-size="28">The repo now reports low-signal OCR explicitly instead of pretending weak text is product proof.</text>
+
+  <circle cx="122" cy="586" r="5" fill="#6FE7FF"/>
+  <text x="146" y="594" fill="#E8EEF5" font-family="Arial, Helvetica, sans-serif" font-size="28">High-fit public cases still need stronger weak-frame recovery and layout-aware app/view extraction.</text>
+
+  <circle cx="122" cy="632" r="5" fill="#6FE7FF"/>
+  <text x="146" y="640" fill="#E8EEF5" font-family="Arial, Helvetica, sans-serif" font-size="28">This is a better failure mode: grounded abstention first, richer semantics second.</text>
+
+  <text x="80" y="690" fill="#7E93A7" font-family="Arial, Helvetica, sans-serif" font-size="20">Source: /home/calvin/tmp/video-evaluator-youtube-benchmark-gated/benchmark.report.json</text>
+</svg>
