@@ -1,0 +1,50 @@
+name: Feature request
+description: Propose a concrete improvement to the repo's evaluation, artifact, or benchmark surface
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please keep requests specific. "Make video understanding better" is too vague. Focus on one bottleneck, artifact, or workflow improvement.
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      placeholder: Add layout-aware app and view extraction from semantic OCR lines
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What current limitation or workflow gap does this address?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Describe the smallest useful version of the feature
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence or examples
+      description: Benchmark cases, artifact examples, or related repos that motivate the change
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - storyboard extraction
+        - OCR quality / semantic lines
+        - transition inference
+        - summary / understanding
+        - benchmark harness
+        - skill-pack ergonomics
+        - docs / repo surface
+    validations:
+      required: true

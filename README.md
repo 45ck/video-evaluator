@@ -121,7 +121,14 @@ tests/
 - for the YouTube benchmark:
   - `python3`
   - `pip`
-  - optionally Firefox cookies for more reliable downloads
+- optionally Firefox cookies for more reliable downloads
+
+## Project Health
+
+- [Contributing guide](./CONTRIBUTING.md)
+- [Security policy](./SECURITY.md)
+- [Changelog](./CHANGELOG.md)
+- [Latest release](https://github.com/45ck/video-evaluator/releases/tag/v0.1.0)
 
 ## Quick Start
 

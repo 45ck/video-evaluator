@@ -1,0 +1,63 @@
+name: Bug report
+description: Report a concrete defect in the video-evaluator pipeline or artifacts
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting this. Keep it grounded in a real artifact, command, or benchmark case where possible.
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: One-sentence description of the problem
+      placeholder: storyboard-understand produced a false app name on a subtitle-heavy clip
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Node version, OS, and any relevant tool versions
+      placeholder: |
+        Node 22.x
+        Ubuntu 24.04
+        ffmpeg 6.x
+        repo commit 7bf3f8b
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Reproduction command
+      description: Exact command or harness invocation
+      render: bash
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: artifacts
+    attributes:
+      label: Relevant artifacts
+      description: Paths or attached snippets from storyboard manifests, OCR, transitions, summary, or benchmark outputs
+      placeholder: |
+        /tmp/.../storyboard.ocr.json
+        /tmp/.../storyboard.summary.json
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional notes
+      description: Anything else that would help diagnose the issue
