@@ -52,6 +52,16 @@ test("inferSameScreenProbeScore rejects hard cuts even when lower regions change
   assert.equal(score, 0);
 });
 
+test("inferSameScreenProbeScore allows moderate top motion when lower regions clearly dominate", () => {
+  const score = inferSameScreenProbeScore({
+    overallDiffPercent: 0.1457,
+    topDiffPercent: 0.0736,
+    middleDiffPercent: 0.2022,
+    bottomDiffPercent: 0.1215,
+  });
+  assert.ok(score > 0);
+});
+
 test("buildHybridTimestamps can prioritize scored same-screen candidates", () => {
   const timestamps = buildHybridTimestamps(80, 6, [
     { timestampSeconds: 12, source: "scene-change", score: 0.4 },

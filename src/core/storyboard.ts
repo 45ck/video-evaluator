@@ -29,6 +29,23 @@ export interface StoryboardManifest {
   samplingMode: "uniform" | "hybrid";
   changeThreshold?: number;
   detectedChangeCount?: number;
+  candidateDiagnostics?: {
+    sourceCounts: {
+      "scene-change": number;
+      "same-screen-change": number;
+    };
+    topCandidates: Array<{
+      timestampSeconds: number;
+      source: "scene-change" | "same-screen-change";
+      score: number;
+      diagnostics?: {
+        overallDiffPercent?: number;
+        topDiffPercent?: number;
+        middleDiffPercent?: number;
+        bottomDiffPercent?: number;
+      };
+    }>;
+  };
   frames: StoryboardFrame[];
 }
 
@@ -43,6 +60,12 @@ interface ChangeCandidate {
   timestampSeconds: number;
   source: "scene-change" | "same-screen-change";
   score: number;
+  diagnostics?: {
+    overallDiffPercent?: number;
+    topDiffPercent?: number;
+    middleDiffPercent?: number;
+    bottomDiffPercent?: number;
+  };
 }
 
 async function probeDuration(videoPath: string): Promise<number> {
@@ -158,7 +181,9 @@ export function inferSameScreenProbeScore(input: {
   bottomDiffPercent: number;
 }): number {
   const lowerRegionDelta = Math.max(input.middleDiffPercent, input.bottomDiffPercent);
-  const topStable = input.topDiffPercent <= 0.045;
+  const topStable =
+    input.topDiffPercent <= 0.045 ||
+    (lowerRegionDelta >= 0.08 && input.topDiffPercent <= lowerRegionDelta * 0.6);
   const localChangeStrength = lowerRegionDelta - input.topDiffPercent;
   const notHardCut = input.overallDiffPercent <= 0.18;
   if (!topStable || !notHardCut || localChangeStrength <= 0.015) {
@@ -360,6 +385,12 @@ async function detectSameScreenChangeCandidates(
           timestampSeconds: current.timestampSeconds,
           source: "same-screen-change",
           score,
+          diagnostics: {
+            overallDiffPercent: overall.mismatchPercent,
+            topDiffPercent: top.mismatchPercent,
+            middleDiffPercent: middle.mismatchPercent,
+            bottomDiffPercent: bottom.mismatchPercent,
+          },
         });
       }
     }
@@ -383,6 +414,25 @@ export async function extractStoryboard(input: StoryboardExtractRequest) {
           ...(await detectSameScreenChangeCandidates(videoPath, durationSeconds, input.frameCount)),
         ]
       : [];
+  const candidateDiagnostics =
+    input.samplingMode === "hybrid"
+      ? {
+          sourceCounts: {
+            "scene-change": detectedChangeCandidates.filter((candidate) => candidate.source === "scene-change").length,
+            "same-screen-change": detectedChangeCandidates.filter((candidate) => candidate.source === "same-screen-change")
+              .length,
+          },
+          topCandidates: [...detectedChangeCandidates]
+            .sort((left, right) => right.score - left.score || left.timestampSeconds - right.timestampSeconds)
+            .slice(0, 12)
+            .map((candidate) => ({
+              timestampSeconds: candidate.timestampSeconds,
+              source: candidate.source,
+              score: candidate.score,
+              diagnostics: candidate.diagnostics,
+            })),
+        }
+      : undefined;
   const framePlan =
     input.samplingMode === "hybrid"
       ? buildHybridFramePlan(durationSeconds, input.frameCount, detectedChangeCandidates)
@@ -430,6 +480,7 @@ export async function extractStoryboard(input: StoryboardExtractRequest) {
     samplingMode: input.samplingMode,
     changeThreshold: input.samplingMode === "hybrid" ? input.changeThreshold : undefined,
     detectedChangeCount: input.samplingMode === "hybrid" ? detectedChangeCandidates.length : undefined,
+    candidateDiagnostics,
     frames,
   };
 

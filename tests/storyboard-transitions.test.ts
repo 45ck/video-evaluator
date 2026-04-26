@@ -171,3 +171,38 @@ test("uses same-screen sampling metadata to avoid false screen-change labels", (
   assert.notEqual(transition.transitionKind, "screen-change");
   assert.ok(["state-change", "dialog-change"].includes(transition.transitionKind));
 });
+
+test("uses fuzzy top shell anchors when OCR varies across the same app chrome", () => {
+  const previous = {
+    ...frame(1, [
+      line("To Tech Helper", "top", 60),
+      line("Step 1: Open WiFi Settings", "top", 130, 420),
+      line("Step 2: Select the network", "middle", 360, 420),
+      line("Message MC Tech Helper", "bottom", 860, 500),
+    ]),
+    samplingReason: "change-peak" as const,
+    samplingSignal: "same-screen-change" as const,
+    nearestChangeDistanceSeconds: 0,
+    samplingScore: 0.91,
+  };
+  const current = {
+    ...frame(2, [
+      line("Tech Helper", "top", 60),
+      line("Step 3: Enter credentials", "middle", 380, 440),
+      line("Username: your MC email", "middle", 470, 460),
+      line("Message MC Tech Helper", "bottom", 860, 500),
+    ]),
+    samplingReason: "change-peak" as const,
+    samplingSignal: "same-screen-change" as const,
+    nearestChangeDistanceSeconds: 0,
+    samplingScore: 0.97,
+  };
+
+  const transition = classifyStoryboardTransition(previous, current, {
+    visualDiffPercent: 0.125,
+    threshold: 0.02,
+  });
+
+  assert.equal(transition.transitionKind, "state-change");
+  assert.match(transition.inferredTransition, /same screen/i);
+});

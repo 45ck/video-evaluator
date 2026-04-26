@@ -138,6 +138,9 @@ function titleCase(value: string): string {
     .join(" ");
 }
 
+const APP_NAME_KEYWORDS = ["helper", "documentation", "tracker", "portal", "studio", "assistant"];
+const APP_NAME_STOPWORDS = new Set(["to", "the", "a", "an", "my", "your", "via", "option"]);
+
 function tokenCount(value: string): number {
   return cleanDisplayLine(value).split(/\s+/).filter(Boolean).length;
 }
@@ -165,6 +168,22 @@ function extractKeywordPhrase(value: string, keywords: string[]): string | null 
     if (keywordMatch) return titleCase(keyword);
   }
   return null;
+}
+
+function canonicalizeAppLikeLabel(value: string): string {
+  const cleaned = cleanDisplayLine(value);
+  const normalized = cleaned.replace(/[^A-Za-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!normalized) return cleaned;
+  const tokens = normalized.split(" ");
+  const keywordIndex = tokens.findIndex((token) => APP_NAME_KEYWORDS.includes(token.toLowerCase()));
+  if (keywordIndex === -1) return cleaned;
+  const sliceStart = Math.max(0, keywordIndex - 2);
+  const canonical = tokens
+    .slice(sliceStart, keywordIndex + 1)
+    .filter((token) => !APP_NAME_STOPWORDS.has(token.toLowerCase()))
+    .filter((token) => token.length >= 2 || APP_NAME_KEYWORDS.includes(token.toLowerCase()))
+    .join(" ");
+  return canonical ? titleCase(canonical) : titleCase(normalized);
 }
 
 function collectRepeatedLabels(
@@ -228,19 +247,19 @@ async function readOcrManifest(request: StoryboardUnderstandRequest): Promise<{ 
 }
 
 function findAppNames(frames: OcrFrame[]): string[] {
-  const appKeywords = ["helper", "documentation", "tracker", "portal", "studio", "assistant"];
   const repeated = collectRepeatedLabels(frames, {
     minOccurrences: 2,
     requireTopRegion: true,
     maxTokens: 5,
   });
   const repeatedCandidates = repeated
-    .map((entry) => extractKeywordPhrase(entry.display, appKeywords) ?? entry.display)
+    .map((entry) => canonicalizeAppLikeLabel(extractKeywordPhrase(entry.display, APP_NAME_KEYWORDS) ?? entry.display))
     .filter((line) => /helper|documentation|tracker|portal|studio|assistant/i.test(line));
   const topLineCandidates = frames
     .flatMap((frame) => frame.lines)
     .filter((line) => line.region === "top")
-    .map((line) => extractKeywordPhrase(line.text, appKeywords) ?? cleanDisplayLine(line.text))
+    .filter((line) => tokenCount(cleanDisplayLine(line.text)) <= 8)
+    .map((line) => canonicalizeAppLikeLabel(extractKeywordPhrase(line.text, APP_NAME_KEYWORDS) ?? cleanDisplayLine(line.text)))
     .filter((line) => !isLikelyUiNoise(line))
     .filter((line) => tokenCount(line) <= 5)
     .filter((line) => !/^(browse|guide|getting|new)\b/i.test(line))

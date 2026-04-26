@@ -98,6 +98,27 @@ function normalizeTextKey(line: string): string {
   return line.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
+const SHELL_ANCHOR_KEYWORDS = new Set(["helper", "assistant", "tracker", "portal", "studio", "documentation"]);
+
+function extractShellAnchors(frame: TransitionOcrFrame): string[] {
+  const anchors = new Set<string>();
+  for (const line of frame.lines) {
+    if (line.region !== "top") continue;
+    const tokens = normalizeTextKey(line.text)
+      .split(" ")
+      .filter((token) => token.length >= 2);
+    const keywordIndex = tokens.findIndex((token) => SHELL_ANCHOR_KEYWORDS.has(token));
+    if (keywordIndex === -1) continue;
+    const sliceStart = Math.max(0, keywordIndex - 1);
+    const anchor = tokens
+      .slice(sliceStart, keywordIndex + 1)
+      .filter((token) => token.length >= 3 || SHELL_ANCHOR_KEYWORDS.has(token))
+      .join(" ");
+    if (anchor) anchors.add(anchor);
+  }
+  return [...anchors];
+}
+
 function lineMap(frame: TransitionOcrFrame): Map<string, TransitionOcrFrame["lines"][number]> {
   const map = new Map<string, TransitionOcrFrame["lines"][number]>();
   for (const line of frame.lines) {
@@ -132,6 +153,9 @@ function getSharedLineInfo(previous: TransitionOcrFrame, current: TransitionOcrF
   const prevMap = lineMap(previous);
   const currentMap = lineMap(current);
   const sharedKeys = [...prevMap.keys()].filter((key) => currentMap.has(key));
+  const previousShellAnchors = extractShellAnchors(previous);
+  const currentShellAnchors = extractShellAnchors(current);
+  const sharedShellAnchors = previousShellAnchors.filter((anchor) => currentShellAnchors.includes(anchor));
   const overlapRatio = sharedKeys.length / Math.max(1, Math.min(prevMap.size, currentMap.size));
   const sharedTopCount = sharedKeys.filter((key) => {
     const prevLine = prevMap.get(key);
@@ -155,6 +179,7 @@ function getSharedLineInfo(previous: TransitionOcrFrame, current: TransitionOcrF
     sharedKeys,
     overlapRatio,
     sharedTopCount,
+    sharedShellAnchorCount: sharedShellAnchors.length,
     verticalShifts,
   };
 }
@@ -166,6 +191,7 @@ function inferGenericKind(
   visualDiffPercent: number,
   threshold: number,
   sharedTopCount: number,
+  sharedShellAnchorCount: number,
   addedRegionCounts: ReturnType<typeof regionCounts>,
   removedRegionCounts: ReturnType<typeof regionCounts>,
   verticalShifts: number[],
@@ -209,11 +235,11 @@ function inferGenericKind(
   if (
     sameScreenProbeSupported &&
     probeDistanceSupported &&
-    sharedTopCount > 0 &&
-    overlapRatio >= 0.1 &&
+    (sharedTopCount > 0 || sharedShellAnchorCount > 0) &&
+    overlapRatio >= 0.08 &&
     visualDiffPercent <= threshold * 8
   ) {
-    evidence.push("sampler flagged a nearby same-screen local change and top anchors partially persisted");
+    evidence.push("sampler flagged a nearby same-screen local change and shell anchors partially persisted");
     return { kind: "state-change", confidence: 0.68, evidence };
   }
 
@@ -255,6 +281,7 @@ function inferTransition(
     visualDiffPercent,
     threshold,
     sharedInfo.sharedTopCount,
+    sharedInfo.sharedShellAnchorCount,
     regionCounts(addedLineObjects),
     regionCounts(removedLineObjects),
     sharedInfo.verticalShifts,
