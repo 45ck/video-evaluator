@@ -106,6 +106,7 @@ test("understandStoryboard extracts app names, views, capabilities, and transiti
 
   assert.ok(written.appNames.includes("Tech Helper"));
   assert.ok(written.views.includes("Win Network Guide"));
+  assert.equal(written.ocrQuality.lowSignal, false);
   assert.equal(written.sampling.mode, "hybrid");
   assert.equal(written.sampling.detectedChangeCount, 6);
   assert.equal(written.sampling.frameReasonCounts["change-peak"], 2);
@@ -313,4 +314,94 @@ test("understandStoryboard keeps UI-led OCR below the narration-dominated thresh
   assert.equal(written.textDominance.dominantRegion, "mixed");
   assert.ok(written.textDominance.notes.some((note: string) => /mostly short UI labels/i.test(note)));
   assert.ok(!written.textDominance.notes.some((note: string) => /concentrated in the/i.test(note)));
+});
+
+test("understandStoryboard excludes rejected OCR frames from semantic extraction", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "video-evaluator-understand-quality-"));
+  const storyboardDir = join(dir, "storyboard");
+  await mkdir(storyboardDir, { recursive: true });
+  await writeFile(
+    join(dir, "storyboard.ocr.json"),
+    JSON.stringify(
+      {
+        storyboardDir,
+        videoPath: "/tmp/mixed-quality.mp4",
+        frames: [
+          {
+            index: 1,
+            timestampSeconds: 0,
+            lines: [
+              { text: "MC ICT Documentation", confidence: 96, region: "top" },
+              { text: "Accessing Google Workspace", confidence: 92, region: "top" },
+            ],
+            semanticLines: [
+              { text: "MC ICT Documentation", confidence: 96, region: "top", evidenceRole: "ui" },
+              { text: "Accessing Google Workspace", confidence: 92, region: "top", evidenceRole: "ui" },
+            ],
+            quality: {
+              status: "usable",
+              usableLineCount: 2,
+              usableLineShare: 1,
+              averageConfidence: 94,
+              topAnchorCount: 2,
+              bottomSentenceShare: 0,
+              reasons: [],
+            },
+          },
+          {
+            index: 2,
+            timestampSeconds: 10,
+            lines: [
+              { text: "MC ICT Documentation", confidence: 95, region: "top" },
+              { text: "Logging In to SEQTA Teach", confidence: 90, region: "top" },
+            ],
+            semanticLines: [
+              { text: "MC ICT Documentation", confidence: 95, region: "top", evidenceRole: "ui" },
+              { text: "Logging In to SEQTA Teach", confidence: 90, region: "top", evidenceRole: "ui" },
+            ],
+            quality: {
+              status: "usable",
+              usableLineCount: 2,
+              usableLineShare: 1,
+              averageConfidence: 92.5,
+              topAnchorCount: 2,
+              bottomSentenceShare: 0,
+              reasons: [],
+            },
+          },
+          {
+            index: 3,
+            timestampSeconds: 20,
+            lines: [
+              { text: "Here's how to connect to WiFi on your Windows device.", confidence: 90, region: "bottom" },
+              { text: "Select the network and enter the password to continue.", confidence: 88, region: "bottom" },
+            ],
+            semanticLines: [],
+            quality: {
+              status: "reject",
+              usableLineCount: 0,
+              usableLineShare: 0,
+              averageConfidence: 89,
+              topAnchorCount: 0,
+              bottomSentenceShare: 1,
+              reasons: ["no-usable-ui-lines"],
+            },
+          },
+        ],
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+
+  const result = await understandStoryboard({
+    ocrPath: join(dir, "storyboard.ocr.json"),
+  });
+  const written = JSON.parse(await readFile(result.outputPath, "utf8"));
+
+  assert.ok(written.appNames.includes("MC ICT Documentation"));
+  assert.ok(written.views.includes("Accessing Google Workspace"));
+  assert.equal(written.ocrQuality.rejectedFrameShare, 0.333);
+  assert.equal(written.ocrQuality.lowSignal, false);
 });

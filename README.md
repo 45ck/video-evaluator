@@ -36,7 +36,7 @@ What it does reasonably well today:
 
 - turns local videos into structured storyboard artifacts
 - works well enough for first-pass review of UI-heavy product videos
-- extracts OCR, basic layout regions, and coarse transition structure
+- extracts OCR, basic layout regions, coarse transition structure, and filtered UI evidence
 - packages grounded prompts so agents can review runs from real artifacts
 - gives multiple repos a common evidence format
 
@@ -66,9 +66,10 @@ In plain English:
 2. Extract a small set of frames across the video.
 3. Bias some of those frames toward likely changes.
 4. OCR the frames into text lines with confidence and coarse regions.
-5. Infer whether frames look like screen changes, same-screen changes,
+5. Filter that OCR into likely UI evidence versus subtitle-like or noisy text.
+6. Infer whether frames look like screen changes, same-screen changes,
    dialog changes, or scroll changes.
-6. Summarize the artifact into a form an agent can actually use.
+7. Summarize the artifact into a form an agent can actually use.
 
 ## Repo Layout
 
@@ -233,6 +234,18 @@ The OCR artifact tries to preserve:
 - line confidence
 - line bounding boxes
 - coarse `top` / `middle` / `bottom` region labels
+- filtered `semanticLines` that are treated as likely UI evidence
+- per-frame `quality` so downstream tools can abstain on low-signal OCR
+
+Important distinction:
+
+- `lines` = raw OCR lines that passed `minConfidence`
+- `semanticLines` = filtered subset intended for semantic extraction
+- `quality.status` = `usable`, `weak`, or `reject`
+
+That means later stages no longer assume every OCR line is product UI.
+Subtitle-heavy or noisy frames can now be downgraded or rejected instead
+of being treated as first-class evidence.
 
 Example:
 
@@ -281,6 +294,7 @@ The current summary includes:
 
 - `appNames`
 - `views`
+- `ocrQuality`
 - `sampling`
 - `interactionSegments`
 - `likelyFlow`
@@ -293,6 +307,11 @@ The current summary includes:
 - UI labels
 - subtitle / narration text
 - mixed evidence
+
+`ocrQuality` is there to answer a different question:
+
+- did this storyboard actually contain enough usable UI evidence to trust
+  semantic extraction at all?
 
 Example:
 
@@ -340,11 +359,15 @@ What they mean:
   - change-point diagnostics
 - `storyboard.ocr.json`
   - OCR output per frame
+  - raw `lines`
+  - filtered `semanticLines`
   - line text, confidence, boxes, and regions
+  - per-frame `quality` classification
 - `storyboard.transitions.json`
   - coarse frame-to-frame transition inference
 - `storyboard.summary.json`
   - agent-facing high-level interpretation of the artifact
+  - includes both `textDominance` and `ocrQuality`
 
 ## Hybrid Sampling
 
@@ -402,6 +425,12 @@ Each entry can include:
 - `category`
 - `query`
 - `expectedFit`
+- `curationStatus`
+- `expectedAppNames`
+- `expectedViewHints`
+- `requiredSignals`
+- `forbiddenSignals`
+- `reviewNotes`
 - `videoId`
 - `url`
 - `channelContains`
@@ -421,6 +450,8 @@ Recommended policy:
 
 The aggregate report distinguishes between:
 
+- operational success
+- semantic benchmark pass
 - raw flow recovery
 - meaningful flow recovery
 
@@ -435,6 +466,10 @@ understanding.
 
 The current repo writes both numbers so the benchmark does not inflate
 itself.
+
+It also reports OCR signal quality so a case can fail honestly for
+"usable UI evidence was weak" instead of being misread as a semantic
+regression.
 
 ### YouTube Download Notes
 

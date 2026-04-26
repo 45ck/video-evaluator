@@ -8,6 +8,22 @@ interface OcrFrame {
   samplingReason?: "uniform" | "change-peak" | "coverage-fill";
   nearestChangeDistanceSeconds?: number;
   lines: Array<{ text: string; confidence: number; region?: "top" | "middle" | "bottom" }>;
+  semanticLines?: Array<{
+    text: string;
+    confidence: number;
+    region?: "top" | "middle" | "bottom";
+    evidenceRole?: "ui" | "subtitle-like" | "garbage";
+    suppressionReasons?: string[];
+  }>;
+  quality?: {
+    status: "usable" | "weak" | "reject";
+    usableLineCount?: number;
+    usableLineShare?: number;
+    averageConfidence?: number;
+    topAnchorCount?: number;
+    bottomSentenceShare?: number;
+    reasons?: string[];
+  };
 }
 
 interface OcrManifest {
@@ -59,13 +75,20 @@ interface TextDominanceSummary {
 }
 
 export interface StoryboardSummaryManifest {
-  schemaVersion: 1;
+  schemaVersion: 2;
   createdAt: string;
   ocrPath: string;
   storyboardDir: string;
   videoPath: string;
   appNames: string[];
   views: string[];
+  ocrQuality: {
+    usableFrameShare: number;
+    weakFrameShare: number;
+    rejectedFrameShare: number;
+    lowSignal: boolean;
+    notes: string[];
+  };
   sampling: {
     mode?: "uniform" | "hybrid";
     detectedChangeCount?: number;
@@ -154,6 +177,18 @@ const GENERIC_VIEW_LABELS = new Set([
 
 function unique<T>(values: T[]): T[] {
   return [...new Set(values)];
+}
+
+function semanticizeFrame(frame: OcrFrame): OcrFrame {
+  return {
+    ...frame,
+    lines:
+      frame.semanticLines && frame.semanticLines.length > 0
+        ? frame.semanticLines
+        : frame.quality?.status === "reject"
+          ? []
+          : frame.lines,
+  };
 }
 
 function normalizeMatchKey(value: string): string {
@@ -532,6 +567,41 @@ function buildTextDominanceSummary(frames: OcrFrame[]): TextDominanceSummary {
   };
 }
 
+function buildOcrQualitySummary(frames: OcrFrame[]): StoryboardSummaryManifest["ocrQuality"] {
+  const hasQualityMetadata = frames.some((frame) => frame.quality);
+  const usableCount = frames.filter((frame) => frame.quality?.status === "usable").length;
+  const weakCount = frames.filter((frame) => frame.quality?.status === "weak").length;
+  const rejectedCount = frames.filter((frame) => frame.quality?.status === "reject").length;
+  const total = Math.max(1, frames.length);
+  const usableFrameShare = Number((usableCount / total).toFixed(3));
+  const weakFrameShare = Number((weakCount / total).toFixed(3));
+  const rejectedFrameShare = Number((rejectedCount / total).toFixed(3));
+  const lowSignal = hasQualityMetadata ? usableFrameShare < 0.4 || rejectedFrameShare >= 0.4 : false;
+  const notes: string[] = [];
+
+  if (hasQualityMetadata) {
+    notes.push(
+      `OCR frame quality: ${usableCount}/${frames.length} usable, ${weakCount}/${frames.length} weak, ${rejectedCount}/${frames.length} rejected.`,
+    );
+    if (rejectedCount > 0) {
+      notes.push("Rejected frames were excluded from semantic extraction so weak OCR does not masquerade as UI evidence.");
+    }
+    if (weakCount > 0) {
+      notes.push("Weak frames contributed cautiously and may still miss stable app or view labels.");
+    }
+  } else {
+    notes.push("This artifact predates OCR quality scoring, so all OCR lines were treated as semantic evidence.");
+  }
+
+  return {
+    usableFrameShare,
+    weakFrameShare,
+    rejectedFrameShare,
+    lowSignal,
+    notes,
+  };
+}
+
 function buildSamplingSummary(
   manifest: OcrManifest,
   fallback: StoryboardManifestFallback | null,
@@ -742,20 +812,22 @@ export async function understandStoryboard(input: StoryboardUnderstandRequest) {
   const { ocrPath, manifest } = await readOcrManifest(input);
   const transitions = await readTransitions(manifest.storyboardDir);
   const storyboardFallback = await readStoryboardSamplingFallback(manifest.storyboardDir);
-  const appNames = findAppNames(manifest.frames);
-  const views = findViews(manifest.frames, appNames);
+  const semanticFrames = manifest.frames.map(semanticizeFrame);
+  const appNames = findAppNames(semanticFrames);
+  const views = findViews(semanticFrames, appNames);
   const summary: StoryboardSummaryManifest = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     createdAt: new Date().toISOString(),
     ocrPath,
     storyboardDir: manifest.storyboardDir,
     videoPath: manifest.videoPath,
     appNames,
     views,
+    ocrQuality: buildOcrQualitySummary(manifest.frames),
     sampling: buildSamplingSummary(manifest, storyboardFallback),
-    interactionSegments: buildInteractionSegments(transitions, manifest.frames, appNames),
+    interactionSegments: buildInteractionSegments(transitions, semanticFrames, appNames),
     likelyFlow: buildLikelyFlow(transitions),
-    likelyCapabilities: buildClaims(manifest.frames),
+    likelyCapabilities: buildClaims(semanticFrames),
     textDominance: buildTextDominanceSummary(manifest.frames),
     openQuestions: [
       "What exact user actions happened between these storyboard frames?",

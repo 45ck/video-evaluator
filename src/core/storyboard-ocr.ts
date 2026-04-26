@@ -41,6 +41,18 @@ export interface StoryboardOcrLine {
     centerY: number;
   };
   region?: "top" | "middle" | "bottom";
+  evidenceRole?: "ui" | "subtitle-like" | "garbage";
+  suppressionReasons?: string[];
+}
+
+export interface StoryboardOcrFrameQuality {
+  status: "usable" | "weak" | "reject";
+  usableLineCount: number;
+  usableLineShare: number;
+  averageConfidence: number;
+  topAnchorCount: number;
+  bottomSentenceShare: number;
+  reasons: string[];
 }
 
 export interface StoryboardOcrFrameResult {
@@ -54,11 +66,13 @@ export interface StoryboardOcrFrameResult {
   imageWidth?: number;
   imageHeight?: number;
   lines: StoryboardOcrLine[];
+  semanticLines: StoryboardOcrLine[];
+  quality: StoryboardOcrFrameQuality;
   text: string;
 }
 
 export interface StoryboardOcrManifest {
-  schemaVersion: 1;
+  schemaVersion: 2;
   createdAt: string;
   storyboardManifestPath: string;
   storyboardDir: string;
@@ -70,7 +84,14 @@ export interface StoryboardOcrManifest {
   frames: StoryboardOcrFrameResult[];
   summary: {
     uniqueLines: string[];
+    uniqueSemanticLines: string[];
     concatenatedText: string;
+    concatenatedSemanticText: string;
+    quality: {
+      usableFrames: number;
+      weakFrames: number;
+      rejectedFrames: number;
+    };
   };
 }
 
@@ -86,6 +107,10 @@ async function readStoryboardManifest(manifestPath: string): Promise<StoryboardM
 
 function normalizeLine(text: string): string {
   return text.replace(/\s+/g, " ").trim();
+}
+
+function wordCount(text: string): number {
+  return normalizeLine(text).split(/\s+/).filter(Boolean).length;
 }
 
 function clampRegion(centerY: number): "top" | "middle" | "bottom" {
@@ -128,6 +153,151 @@ function buildBboxFromRect(left: number, top: number, width: number, height: num
     height: Math.max(1, height),
     centerX: left + Math.max(1, width) / 2,
     centerY: top + Math.max(1, height) / 2,
+  };
+}
+
+const UI_KEYWORDS = [
+  "dashboard",
+  "settings",
+  "queue",
+  "sign in",
+  "documentation",
+  "search",
+  "menu",
+  "help",
+  "guide",
+  "tracker",
+  "portal",
+  "assistant",
+  "admin",
+  "overview",
+  "profile",
+  "home",
+  "back",
+  "next",
+  "save",
+  "cancel",
+  "connect",
+  "login",
+  "username",
+  "password",
+];
+
+function looksSentenceLike(text: string): boolean {
+  const normalized = normalizeLine(text);
+  const words = wordCount(normalized);
+  if (words >= 10) return true;
+  if (words >= 7 && /[.?!,:]/.test(normalized)) return true;
+  return false;
+}
+
+function looksUiLike(text: string): boolean {
+  const normalized = normalizeLine(text).toLowerCase();
+  if (!normalized) return false;
+  if (UI_KEYWORDS.some((keyword) => normalized.includes(keyword))) return true;
+  if (/^(step\s+\d+|view|settings|overview|queue|search|documentation|dashboard)\b/i.test(normalized)) return true;
+  if (/^[A-Z][A-Za-z0-9]+(?:\s+[A-Z][A-Za-z0-9]+){0,4}$/.test(text)) return true;
+  return false;
+}
+
+function classifySemanticEvidence(line: StoryboardOcrLine): StoryboardOcrLine {
+  const text = normalizeLine(line.text);
+  const suppressionReasons: string[] = [];
+  let evidenceRole: StoryboardOcrLine["evidenceRole"] = "ui";
+  const words = wordCount(text);
+  const sentenceLike = looksSentenceLike(text);
+  const uiLike = looksUiLike(text) && !(sentenceLike && words >= 8);
+
+  if (!/[A-Za-z]/.test(text) || text.length <= 2 || /^[\W\d]+$/.test(text)) {
+    evidenceRole = "garbage";
+    suppressionReasons.push("non-semantic-text");
+  }
+
+  if (line.confidence < 55) {
+    suppressionReasons.push("low-confidence");
+  }
+
+  if (!uiLike && sentenceLike && line.region === "bottom") {
+    evidenceRole = "subtitle-like";
+    suppressionReasons.push("bottom-sentence");
+  } else if (!uiLike && sentenceLike && words >= 10) {
+    evidenceRole = "subtitle-like";
+    suppressionReasons.push("long-sentence");
+  }
+
+  if (!uiLike && line.confidence < 60 && words >= 6) {
+    evidenceRole = "garbage";
+    suppressionReasons.push("noisy-long-line");
+  }
+
+  if (!uiLike && text.length >= 90) {
+    evidenceRole = "subtitle-like";
+    suppressionReasons.push("very-long-line");
+  }
+
+  return {
+    ...line,
+    evidenceRole,
+    suppressionReasons: suppressionReasons.length > 0 ? suppressionReasons : undefined,
+  };
+}
+
+export function assessStoryboardOcrFrameQuality(lines: StoryboardOcrLine[]): {
+  semanticLines: StoryboardOcrLine[];
+  quality: StoryboardOcrFrameQuality;
+} {
+  const classified = lines.map(classifySemanticEvidence);
+  const semanticLines = classified.filter((line) => line.evidenceRole === "ui");
+  const usableLineCount = semanticLines.length;
+  const averageConfidence =
+    classified.length > 0
+      ? Number(
+          (
+            classified.reduce((sum, line) => sum + line.confidence, 0) /
+            Math.max(1, classified.length)
+          ).toFixed(1),
+        )
+      : 0;
+  const bottomSentenceCount = classified.filter(
+    (line) => line.region === "bottom" && line.evidenceRole === "subtitle-like",
+  ).length;
+  const usableLineShare = Number((usableLineCount / Math.max(1, classified.length)).toFixed(3));
+  const bottomSentenceShare = Number((bottomSentenceCount / Math.max(1, classified.length)).toFixed(3));
+  const topAnchorCount = semanticLines.filter((line) => line.region === "top").length;
+  const reasons: string[] = [];
+  let status: StoryboardOcrFrameQuality["status"] = "usable";
+
+  if (classified.length === 0) {
+    status = "reject";
+    reasons.push("no-ocr-lines");
+  } else if (usableLineCount === 0) {
+    status = "reject";
+    reasons.push("no-usable-ui-lines");
+  } else if (usableLineShare < 0.25 && bottomSentenceShare >= 0.4) {
+    status = "reject";
+    reasons.push("subtitle-dominated");
+  } else if (averageConfidence < 55 && usableLineCount < 2) {
+    status = "reject";
+    reasons.push("very-low-confidence");
+  } else {
+    if (usableLineShare < 0.45) reasons.push("limited-ui-evidence");
+    if (averageConfidence < 68) reasons.push("soft-confidence");
+    if (topAnchorCount === 0) reasons.push("no-top-anchor");
+    if (usableLineCount < 2) reasons.push("thin-ui-evidence");
+    if (reasons.length > 0) status = "weak";
+  }
+
+  return {
+    semanticLines,
+    quality: {
+      status,
+      usableLineCount,
+      usableLineShare,
+      averageConfidence,
+      topAnchorCount,
+      bottomSentenceShare,
+      reasons,
+    },
   };
 }
 
@@ -365,6 +535,7 @@ export async function ocrStoryboard(input: StoryboardOcrRequest) {
         blockResult.lines,
         tsvFallback.lines,
       );
+      const { semanticLines, quality } = assessStoryboardOcrFrameQuality(lines);
       const text = lines.map((line) => line.text).join("\n");
       results.push({
         index: frame.index,
@@ -377,14 +548,18 @@ export async function ocrStoryboard(input: StoryboardOcrRequest) {
         imageWidth,
         imageHeight,
         lines,
+        semanticLines,
+        quality,
         text,
       });
     }
 
     const uniqueLines = [...new Set(results.flatMap((frame) => frame.lines.map((line) => line.text)))];
+    const uniqueSemanticLines = [...new Set(results.flatMap((frame) => frame.semanticLines.map((line) => line.text)))];
     const summaryText = uniqueLines.join("\n");
+    const semanticSummaryText = uniqueSemanticLines.join("\n");
     const output: StoryboardOcrManifest = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       createdAt: new Date().toISOString(),
       storyboardManifestPath: manifestPath,
       storyboardDir,
@@ -396,7 +571,14 @@ export async function ocrStoryboard(input: StoryboardOcrRequest) {
       frames: results,
       summary: {
         uniqueLines,
+        uniqueSemanticLines,
         concatenatedText: summaryText,
+        concatenatedSemanticText: semanticSummaryText,
+        quality: {
+          usableFrames: results.filter((frame) => frame.quality.status === "usable").length,
+          weakFrames: results.filter((frame) => frame.quality.status === "weak").length,
+          rejectedFrames: results.filter((frame) => frame.quality.status === "reject").length,
+        },
       },
     };
 

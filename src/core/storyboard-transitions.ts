@@ -34,6 +34,26 @@ export interface TransitionOcrFrame {
       centerY: number;
     };
   }>;
+  semanticLines?: Array<{
+    text: string;
+    confidence: number;
+    region?: "top" | "middle" | "bottom";
+    evidenceRole?: "ui" | "subtitle-like" | "garbage";
+    bbox?: {
+      x0: number;
+      y0: number;
+      x1: number;
+      y1: number;
+      width: number;
+      height: number;
+      centerX: number;
+      centerY: number;
+    };
+  }>;
+  quality?: {
+    status: "usable" | "weak" | "reject";
+    reasons?: string[];
+  };
 }
 
 interface OcrManifest {
@@ -91,7 +111,15 @@ async function readOcrManifest(request: StoryboardTransitionsRequest): Promise<{
 }
 
 function normalizeLines(frame: TransitionOcrFrame): string[] {
-  return frame.lines.map((line) => line.text.trim()).filter(Boolean);
+  return getEvidenceLines(frame)
+    .map((line) => line.text.trim())
+    .filter(Boolean);
+}
+
+function getEvidenceLines(frame: TransitionOcrFrame) {
+  if (frame.semanticLines && frame.semanticLines.length > 0) return frame.semanticLines;
+  if (frame.quality?.status === "reject") return [];
+  return frame.lines;
 }
 
 function normalizeTextKey(line: string): string {
@@ -102,7 +130,7 @@ const SHELL_ANCHOR_KEYWORDS = new Set(["helper", "assistant", "tracker", "portal
 
 function extractShellAnchors(frame: TransitionOcrFrame): string[] {
   const anchors = new Set<string>();
-  for (const line of frame.lines) {
+  for (const line of getEvidenceLines(frame)) {
     if (line.region !== "top") continue;
     const tokens = normalizeTextKey(line.text)
       .split(" ")
@@ -121,7 +149,7 @@ function extractShellAnchors(frame: TransitionOcrFrame): string[] {
 
 function lineMap(frame: TransitionOcrFrame): Map<string, TransitionOcrFrame["lines"][number]> {
   const map = new Map<string, TransitionOcrFrame["lines"][number]>();
-  for (const line of frame.lines) {
+  for (const line of getEvidenceLines(frame)) {
     const key = normalizeTextKey(line.text);
     if (!key || map.has(key)) continue;
     map.set(key, line);
@@ -197,6 +225,7 @@ function inferGenericKind(
   verticalShifts: number[],
 ): { kind: StoryboardTransition["transitionKind"]; confidence: number; evidence: string[] } {
   const evidence: string[] = [];
+  const qualityRejected = previous.quality?.status === "reject" || current.quality?.status === "reject";
   const meanShift =
     verticalShifts.length > 0
       ? verticalShifts.reduce((sum, value) => sum + value, 0) / verticalShifts.length
@@ -210,6 +239,15 @@ function inferGenericKind(
   const probeDistanceSupported =
     (typeof previous.nearestChangeDistanceSeconds === "number" && previous.nearestChangeDistanceSeconds <= 0.35) ||
     (typeof current.nearestChangeDistanceSeconds === "number" && current.nearestChangeDistanceSeconds <= 0.35);
+
+  if (qualityRejected) {
+    evidence.push("at least one frame had rejected OCR quality, so text-based overlap is low-trust");
+    if (visualDiffPercent > threshold * 6) {
+      evidence.push("falling back to visual diff because OCR evidence was rejected");
+      return { kind: "screen-change", confidence: 0.72, evidence };
+    }
+    return { kind: "uncertain", confidence: 0.36, evidence };
+  }
 
   if (sharedTopCount > 0 && overlapRatio >= 0.5 && consistentShiftCount >= 2) {
     evidence.push("stable top-region text stayed visible while shared lines shifted vertically");

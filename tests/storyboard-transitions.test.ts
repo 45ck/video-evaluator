@@ -228,3 +228,34 @@ test("labels sign-in transitions from common auth UI variants", () => {
   assert.match(transition.inferredTransition, /sign-in screen/i);
   assert.ok(transition.confidence >= 0.88);
 });
+
+test("rejected OCR quality does not fake a same-screen state change", () => {
+  const previous = {
+    ...frame(1, [
+      line("Here's how to connect to WiFi on your Windows device.", "bottom", 860, 600),
+      line("Select the network and enter the password to continue.", "bottom", 910, 700),
+    ]),
+    semanticLines: [],
+    quality: {
+      status: "reject" as const,
+    },
+  };
+  const current = {
+    ...frame(2, [
+      line("If you have any issues, feel free to ask for help.", "bottom", 860, 720),
+      line("You're all set after the next step.", "bottom", 910, 460),
+    ]),
+    semanticLines: [],
+    quality: {
+      status: "reject" as const,
+    },
+  };
+
+  const transition = classifyStoryboardTransition(previous, current, {
+    visualDiffPercent: 0.04,
+    threshold: 0.02,
+  });
+
+  assert.notEqual(transition.transitionKind, "state-change");
+  assert.ok(["uncertain", "screen-change"].includes(transition.transitionKind));
+});

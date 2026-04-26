@@ -20,6 +20,12 @@ interface BenchmarkEntry {
   category: string;
   query: string;
   expectedFit: "high" | "medium" | "low";
+  curationStatus?: "gold" | "provisional" | "negative-control" | "needs-retune";
+  expectedAppNames?: string[];
+  expectedViewHints?: string[];
+  requiredSignals?: Array<"appNames" | "views" | "meaningfulFlow" | "capabilities">;
+  forbiddenSignals?: Array<"appNames" | "views" | "meaningfulFlow" | "capabilities">;
+  reviewNotes?: string;
   videoId?: string;
   url?: string;
   channelContains?: string;
@@ -68,6 +74,12 @@ interface BenchmarkCaseReport {
   sampleSizeBytes?: number;
   appNames: string[];
   views: string[];
+  ocrQuality?: {
+    usableFrameShare: number;
+    weakFrameShare: number;
+    rejectedFrameShare: number;
+    lowSignal: boolean;
+  };
   textDominance?: {
     likelyNarrationDominated: boolean;
     dominantRegion?: "top" | "middle" | "bottom" | "mixed";
@@ -81,6 +93,7 @@ interface BenchmarkCaseReport {
   }>;
   likelyFlow: string[];
   likelyCapabilities: string[];
+  semanticPass?: boolean;
   notes: string[];
   error?: string;
 }
@@ -96,7 +109,9 @@ interface BenchmarkAggregateReport {
   metrics: {
     withAppNames: number;
     withViews: number;
+    semanticPassCount: number;
     narrationDominatedCases: number;
+    lowSignalCases: number;
     withInteractionSegments: number;
     withMeaningfulInteractionSegments: number;
     withLikelyFlow: number;
@@ -108,6 +123,7 @@ interface BenchmarkAggregateReport {
     {
       total: number;
       ok: number;
+      semanticPass: number;
       withAppNames: number;
       withInteractionSegments: number;
       withLikelyFlow: number;
@@ -427,6 +443,9 @@ function scoreNotes(report: BenchmarkCaseReport) {
   if (report.textDominance?.likelyNarrationDominated) {
     notes.push("OCR appears narration/subtitle-dominated, so label extraction is likely low-signal.");
   }
+  if (report.ocrQuality?.lowSignal) {
+    notes.push("OCR quality was low-signal after filtering, so semantic recovery was intentionally conservative.");
+  }
   if (report.likelyFlow.length > 0 && !hasMeaningfulLikelyFlow(report)) {
     notes.push("Flow output only showed generic screen-change jumps, so it was not counted as meaningful flow success.");
   }
@@ -437,6 +456,45 @@ function scoreNotes(report: BenchmarkCaseReport) {
     notes.push("Low-fit sample still produced structured flow output.");
   }
   return notes;
+}
+
+function normalizeKey(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function evaluateSemanticPass(entry: BenchmarkEntry, report: BenchmarkCaseReport) {
+  if (report.status !== "ok") return false;
+  if (!entry.curationStatus || entry.curationStatus === "needs-retune") return false;
+
+  const appNameKeys = new Set(report.appNames.map(normalizeKey));
+  const viewText = report.views.map(normalizeKey).join(" || ");
+  const capabilityText = report.likelyCapabilities.map(normalizeKey).join(" || ");
+  const requiredSignals = entry.requiredSignals ?? [];
+  const forbiddenSignals = entry.forbiddenSignals ?? [];
+
+  for (const expected of entry.expectedAppNames ?? []) {
+    if (!appNameKeys.has(normalizeKey(expected))) return false;
+  }
+
+  for (const expected of entry.expectedViewHints ?? []) {
+    if (!viewText.includes(normalizeKey(expected))) return false;
+  }
+
+  for (const signal of requiredSignals) {
+    if (signal === "appNames" && report.appNames.length === 0) return false;
+    if (signal === "views" && report.views.length === 0) return false;
+    if (signal === "meaningfulFlow" && !hasMeaningfulLikelyFlow(report)) return false;
+    if (signal === "capabilities" && report.likelyCapabilities.length === 0) return false;
+  }
+
+  for (const signal of forbiddenSignals) {
+    if (signal === "appNames" && report.appNames.length > 0) return false;
+    if (signal === "views" && report.views.length > 0) return false;
+    if (signal === "meaningfulFlow" && hasMeaningfulLikelyFlow(report)) return false;
+    if (signal === "capabilities" && capabilityText.length > 0) return false;
+  }
+
+  return true;
 }
 
 function hasMeaningfulLikelyFlow(report: Pick<BenchmarkCaseReport, "interactionSegments" | "likelyFlow">) {
@@ -462,7 +520,9 @@ function renderMarkdown(aggregate: BenchmarkAggregateReport) {
   }
   lines.push(`- App names recovered: ${aggregate.metrics.withAppNames}/${aggregate.successCount}`);
   lines.push(`- Views recovered: ${aggregate.metrics.withViews}/${aggregate.successCount}`);
+  lines.push(`- Semantic benchmark passes: ${aggregate.metrics.semanticPassCount}/${aggregate.successCount}`);
   lines.push(`- Narration-dominated cases: ${aggregate.metrics.narrationDominatedCases}/${aggregate.successCount}`);
+  lines.push(`- Low-signal OCR cases: ${aggregate.metrics.lowSignalCases}/${aggregate.successCount}`);
   lines.push(`- Interaction segments recovered: ${aggregate.metrics.withInteractionSegments}/${aggregate.successCount}`);
   lines.push(
     `- Meaningful interaction segments recovered: ${aggregate.metrics.withMeaningfulInteractionSegments}/${aggregate.successCount} ` +
@@ -478,7 +538,7 @@ function renderMarkdown(aggregate: BenchmarkAggregateReport) {
   lines.push("");
   for (const [fit, stats] of Object.entries(aggregate.fitBreakdown)) {
     lines.push(
-      `- ${fit}: ${stats.ok}/${stats.total} ok, app names ${stats.withAppNames}, ` +
+      `- ${fit}: ${stats.ok}/${stats.total} ok, semantic pass ${stats.semanticPass}, app names ${stats.withAppNames}, ` +
         `segments ${stats.withInteractionSegments}, flow ${stats.withLikelyFlow}, ` +
         `meaningful flow ${stats.withMeaningfulLikelyFlow}`,
     );
@@ -489,6 +549,7 @@ function renderMarkdown(aggregate: BenchmarkAggregateReport) {
     lines.push(`- Status: ${report.status}`);
     lines.push(`- Category: ${report.category}`);
     lines.push(`- Expected fit: ${report.expectedFit}`);
+    if (report.semanticPass !== undefined) lines.push(`- Semantic pass: ${report.semanticPass}`);
     lines.push(`- Title: ${report.title ?? "unresolved"}`);
     lines.push(`- URL: ${report.url ?? "unresolved"}`);
     if (report.channel) lines.push(`- Channel: ${report.channel}`);
@@ -508,6 +569,11 @@ function renderMarkdown(aggregate: BenchmarkAggregateReport) {
     if (report.textDominance) {
       lines.push(
         `- Text dominance: narration=${report.textDominance.likelyNarrationDominated}, region=${report.textDominance.dominantRegion ?? "mixed"}, line share=${report.textDominance.narrationLikeLineShare}`,
+      );
+    }
+    if (report.ocrQuality) {
+      lines.push(
+        `- OCR quality: usable=${report.ocrQuality.usableFrameShare}, weak=${report.ocrQuality.weakFrameShare}, rejected=${report.ocrQuality.rejectedFrameShare}, lowSignal=${report.ocrQuality.lowSignal}`,
       );
     }
     lines.push(`- Interaction segments: ${report.interactionSegments.length}`);
@@ -531,9 +597,9 @@ function renderMarkdown(aggregate: BenchmarkAggregateReport) {
 function buildAggregateReport(config: BenchmarkConfig, reports: BenchmarkCaseReport[]): BenchmarkAggregateReport {
   const okReports = reports.filter((report) => report.status === "ok");
   const fitBreakdown: BenchmarkAggregateReport["fitBreakdown"] = {
-    high: { total: 0, ok: 0, withAppNames: 0, withInteractionSegments: 0, withLikelyFlow: 0, withMeaningfulLikelyFlow: 0 },
-    medium: { total: 0, ok: 0, withAppNames: 0, withInteractionSegments: 0, withLikelyFlow: 0, withMeaningfulLikelyFlow: 0 },
-    low: { total: 0, ok: 0, withAppNames: 0, withInteractionSegments: 0, withLikelyFlow: 0, withMeaningfulLikelyFlow: 0 },
+    high: { total: 0, ok: 0, semanticPass: 0, withAppNames: 0, withInteractionSegments: 0, withLikelyFlow: 0, withMeaningfulLikelyFlow: 0 },
+    medium: { total: 0, ok: 0, semanticPass: 0, withAppNames: 0, withInteractionSegments: 0, withLikelyFlow: 0, withMeaningfulLikelyFlow: 0 },
+    low: { total: 0, ok: 0, semanticPass: 0, withAppNames: 0, withInteractionSegments: 0, withLikelyFlow: 0, withMeaningfulLikelyFlow: 0 },
   };
 
   for (const report of reports) {
@@ -541,6 +607,7 @@ function buildAggregateReport(config: BenchmarkConfig, reports: BenchmarkCaseRep
     bucket.total += 1;
     if (report.status !== "ok") continue;
     bucket.ok += 1;
+    if (report.semanticPass) bucket.semanticPass += 1;
     if (report.appNames.length > 0) bucket.withAppNames += 1;
     if (report.interactionSegments.length > 0) bucket.withInteractionSegments += 1;
     if (report.likelyFlow.length > 0) bucket.withLikelyFlow += 1;
@@ -568,7 +635,9 @@ function buildAggregateReport(config: BenchmarkConfig, reports: BenchmarkCaseRep
     metrics: {
       withAppNames: okReports.filter((report) => report.appNames.length > 0).length,
       withViews: okReports.filter((report) => report.views.length > 0).length,
+      semanticPassCount: okReports.filter((report) => report.semanticPass).length,
       narrationDominatedCases: okReports.filter((report) => report.textDominance?.likelyNarrationDominated).length,
+      lowSignalCases: okReports.filter((report) => report.ocrQuality?.lowSignal).length,
       withInteractionSegments: okReports.filter((report) => report.interactionSegments.length > 0).length,
       withMeaningfulInteractionSegments: okReports.filter((report) => hasMeaningfulInteractionSegments(report)).length,
       withLikelyFlow: okReports.filter((report) => report.likelyFlow.length > 0).length,
@@ -637,6 +706,7 @@ async function run() {
         sampleSizeBytes: sampleStat.size,
         appNames: summary.manifest.appNames,
         views: summary.manifest.views,
+        ocrQuality: summary.manifest.ocrQuality,
         textDominance: summary.manifest.textDominance,
         interactionSegments: summary.manifest.interactionSegments.map((segment) => ({
           summary: segment.summary,
@@ -645,8 +715,10 @@ async function run() {
         })),
         likelyFlow: summary.manifest.likelyFlow,
         likelyCapabilities: summary.manifest.likelyCapabilities.map((claim) => claim.claim),
+        semanticPass: false,
         notes: [],
       };
+      report.semanticPass = evaluateSemanticPass(entry, report);
       report.notes = scoreNotes(report);
       await writeFile(join(caseDir, "case-report.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
       reports.push(report);
