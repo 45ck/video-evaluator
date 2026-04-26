@@ -3,6 +3,7 @@ import { z } from "zod";
 export const InstallSkillPackRequestSchema = z.object({
   targetDir: z.string().min(1),
   includeAgentRunner: z.boolean().default(true),
+  installDependencies: z.boolean().default(true),
 });
 
 export const SkillCatalogRequestSchema = z.object({}).default({});

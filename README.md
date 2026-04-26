@@ -67,6 +67,12 @@ cat <<'JSON' | node --import tsx scripts/harness/install-skill-pack.ts
 JSON
 ```
 
+That materialized pack now includes the built runtime surface under
+`dist/`, and `install-skill-pack` installs runtime dependencies in the
+materialized folder by default, so the copied `agent/run-tool.mjs` can
+run inside a blank workspace instead of assuming a preinstalled package
+dependency.
+
 ## Agent Surface
 
 Installed-package consumers should prefer:

@@ -218,11 +218,16 @@ export async function intakeBundle(request: VideoIntakeRequest): Promise<BundleA
   };
 }
 
-export async function copySkillPack(targetDir: string, includeAgentRunner: boolean): Promise<string[]> {
+export async function copySkillPack(
+  targetDir: string,
+  includeAgentRunner: boolean,
+  installDependencies: boolean,
+): Promise<string[]> {
   const repoRoot = resolve(dirname(new URL(import.meta.url).pathname), "../../");
   const copied: string[] = [];
   const skillRoot = join(repoRoot, "skills");
-  const targetSkillsRoot = join(resolve(targetDir), "skills");
+  const targetRoot = resolve(targetDir);
+  const targetSkillsRoot = join(targetRoot, "skills");
   await mkdir(targetSkillsRoot, { recursive: true });
 
   const skillEntries = await readdir(skillRoot, { withFileTypes: true });
@@ -249,8 +254,21 @@ export async function copySkillPack(targetDir: string, includeAgentRunner: boole
     }
   }
 
+  const distSource = join(repoRoot, "dist");
+  if (await pathExists(distSource)) {
+    await copyDirRecursive(distSource, join(targetRoot, "dist"), copied);
+  }
+
+  for (const repoFile of ["package.json", "README.md"]) {
+    const sourcePath = join(repoRoot, repoFile);
+    if (!(await pathExists(sourcePath))) continue;
+    const targetPath = join(targetRoot, repoFile);
+    await copyFile(sourcePath, targetPath);
+    copied.push(targetPath);
+  }
+
   if (includeAgentRunner) {
-    const agentTarget = join(resolve(targetDir), "agent");
+    const agentTarget = join(targetRoot, "agent");
     await mkdir(agentTarget, { recursive: true });
     const sourceRunner = join(repoRoot, "agent", "run-tool.mjs");
     const targetRunner = join(agentTarget, "run-tool.mjs");
@@ -258,5 +276,27 @@ export async function copySkillPack(targetDir: string, includeAgentRunner: boole
     copied.push(targetRunner);
   }
 
+  if (installDependencies) {
+    await execFileAsync("npm", ["install", "--omit=dev"], {
+      cwd: targetRoot,
+    });
+  }
+
   return copied;
+}
+
+async function copyDirRecursive(sourceDir: string, targetDir: string, copied: string[]): Promise<void> {
+  await mkdir(targetDir, { recursive: true });
+  const entries = await readdir(sourceDir, { withFileTypes: true });
+  for (const entry of entries) {
+    const sourcePath = join(sourceDir, entry.name);
+    const targetPath = join(targetDir, entry.name);
+    if (entry.isDirectory()) {
+      await copyDirRecursive(sourcePath, targetPath, copied);
+      continue;
+    }
+    if (!entry.isFile()) continue;
+    await copyFile(sourcePath, targetPath);
+    copied.push(targetPath);
+  }
 }

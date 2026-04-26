@@ -1,3 +1,4 @@
 {
-  "targetDir": ".video-evaluator"
+  "targetDir": ".video-evaluator",
+  "installDependencies": true
 }

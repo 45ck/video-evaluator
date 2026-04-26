@@ -5,11 +5,16 @@ import {
 } from "../core/schemas.js";
 
 export async function installSkillPack(input: InstallSkillPackRequest) {
-  const copied = await copySkillPack(input.targetDir, input.includeAgentRunner);
+  const copied = await copySkillPack(
+    input.targetDir,
+    input.includeAgentRunner,
+    input.installDependencies,
+  );
   return {
     targetDir: input.targetDir,
     copied,
     count: copied.length,
+    installDependencies: input.installDependencies,
   };
 }
 

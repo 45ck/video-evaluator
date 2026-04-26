@@ -11,7 +11,9 @@ of re-implementing review helpers.
 Outputs:
 
 - copied `skills/*`
+- copied runtime under `dist/*`
 - optional `agent/run-tool.mjs`
+- installed runtime dependencies by default
 
 Repo-side runner:
 
