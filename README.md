@@ -1,5 +1,10 @@
 # video-evaluator
 
+[![Node.js >=20.6](https://img.shields.io/badge/node-%3E%3D20.6-1f6feb?style=flat-square)](./package.json)
+[![License: MIT](https://img.shields.io/badge/license-MIT-2da44e?style=flat-square)](./LICENSE)
+[![Tests](https://img.shields.io/badge/tests-26%20passing-2da44e?style=flat-square)](./tests)
+[![Status: Experimental](https://img.shields.io/badge/status-experimental-f59e0b?style=flat-square)](./README.md#current-capability-boundary)
+
 `video-evaluator` is a standalone video review and understanding pack for
 Codex, Claude Code, and other coding-agent workflows.
 
@@ -9,6 +14,19 @@ and give an agent a shared way to inspect what happened.
 
 This repo exists as a shared layer that should prove itself useful
 before other repos depend on it.
+
+## At A Glance
+
+- Purpose: extract storyboard evidence from videos and turn it into
+  agent-usable review artifacts
+- Best fit today: UI-heavy product demos, walkthroughs, and internal app
+  recordings
+- Not solved yet: arbitrary-video understanding and exact click-by-click
+  timeline reconstruction
+- Output shape: `storyboard.manifest.json`, `storyboard.ocr.json`,
+  `storyboard.transitions.json`, `storyboard.summary.json`
+- Maturity: experimental but benchmarked, with explicit low-signal
+  reporting instead of pretending weak OCR is semantic proof
 
 ## What This Repo Is
 
