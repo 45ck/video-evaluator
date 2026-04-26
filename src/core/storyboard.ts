@@ -132,6 +132,22 @@ function canAddTimestamp(value: number, chosen: number[], minSpacingSeconds: num
   return chosen.every((existing) => Math.abs(existing - value) >= minSpacingSeconds);
 }
 
+function canAddPlannedFrame(
+  candidate: PlannedStoryboardFrame,
+  chosen: PlannedStoryboardFrame[],
+  minSpacingSeconds: number,
+): boolean {
+  return chosen.every((existing) => {
+    const isSameScreenCluster =
+      candidate.samplingReason === "change-peak" &&
+      existing.samplingReason === "change-peak" &&
+      candidate.samplingSignal === "same-screen-change" &&
+      existing.samplingSignal === "same-screen-change";
+    const spacingFloor = isSameScreenCluster ? Math.max(0.9, minSpacingSeconds * 0.95) : minSpacingSeconds;
+    return Math.abs(existing.timestampSeconds - candidate.timestampSeconds) >= spacingFloor;
+  });
+}
+
 function nearestDistanceSeconds(value: number, candidates: number[]): number | undefined {
   if (candidates.length === 0) return undefined;
   return candidates.reduce((best, candidate) => {
@@ -205,15 +221,29 @@ export function deriveSameScreenContextCandidates(
     diagnostics?: ChangeCandidate["diagnostics"];
   }>,
 ): ChangeCandidate[] {
-  return transitions
-    .filter((transition) => transition.score >= 0.85)
-    .map((transition) => ({
+  const generated: ChangeCandidate[] = [];
+  for (const transition of transitions) {
+    if (transition.score < 0.85) continue;
+    generated.push({
       timestampSeconds: transition.previousTimestampSeconds,
-      source: "same-screen-change" as const,
+      source: "same-screen-change",
       score: Number(Math.max(0.72, Math.min(0.88, transition.score * 0.82)).toFixed(4)),
       contextGenerated: true,
       diagnostics: transition.diagnostics,
-    }));
+    });
+
+    const spanSeconds = transition.currentTimestampSeconds - transition.previousTimestampSeconds;
+    if (spanSeconds >= 1.2) {
+      generated.push({
+        timestampSeconds: Number((transition.previousTimestampSeconds + spanSeconds / 2).toFixed(3)),
+        source: "same-screen-change",
+        score: Number(Math.max(0.68, Math.min(0.84, transition.score * 0.74)).toFixed(4)),
+        contextGenerated: true,
+        diagnostics: transition.diagnostics,
+      });
+    }
+  }
+  return generated;
 }
 
 function selectCandidatePeaks(
@@ -228,7 +258,13 @@ function selectCandidatePeaks(
   });
   for (const candidate of sorted) {
     if (chosen.length >= maxCount) break;
-    if (canAddTimestamp(candidate.timestampSeconds, chosen.map((entry) => entry.timestampSeconds), minSpacingSeconds)) {
+    const canAdd = chosen.every((existing) => {
+      const isSameScreenCluster =
+        candidate.source === "same-screen-change" && existing.source === "same-screen-change";
+      const spacingFloor = isSameScreenCluster ? Math.max(0.9, minSpacingSeconds * 0.95) : minSpacingSeconds;
+      return Math.abs(existing.timestampSeconds - candidate.timestampSeconds) >= spacingFloor;
+    });
+    if (canAdd) {
       chosen.push(candidate);
     }
   }
@@ -256,47 +292,46 @@ function buildHybridFramePlan(
   const spreadCandidates = pickEvenlySpacedEntries(normalizedCandidates, candidateBudget);
   const fallbackGrid = buildUniformTimestamps(durationSeconds, Math.max(frameCount * 3, frameCount));
   const chosen: PlannedStoryboardFrame[] = [];
-  const chosenTimestamps: number[] = [];
   const addTimestamps = (
     values: number[],
     samplingReason: PlannedStoryboardFrame["samplingReason"],
   ) => {
     for (const value of values) {
       if (chosen.length >= frameCount) return;
-      if (canAddTimestamp(value, chosenTimestamps, minSpacingSeconds)) {
-        chosen.push({
-          timestampSeconds: value,
-          samplingReason,
-          samplingSignal: undefined,
-          samplingScore: undefined,
-        });
-        chosenTimestamps.push(value);
+      const plannedFrame: PlannedStoryboardFrame = {
+        timestampSeconds: value,
+        samplingReason,
+        samplingSignal: undefined,
+        samplingScore: undefined,
+      };
+      if (canAddPlannedFrame(plannedFrame, chosen, minSpacingSeconds)) {
+        chosen.push(plannedFrame);
       }
     }
   };
 
   for (const candidate of prioritizedCandidates) {
     if (chosen.length >= frameCount) break;
-    if (canAddTimestamp(candidate.timestampSeconds, chosenTimestamps, minSpacingSeconds)) {
-      chosen.push({
-        timestampSeconds: candidate.timestampSeconds,
-        samplingReason: "change-peak",
-        samplingSignal: candidate.source,
-        samplingScore: candidate.score,
-      });
-      chosenTimestamps.push(candidate.timestampSeconds);
+    const plannedFrame: PlannedStoryboardFrame = {
+      timestampSeconds: candidate.timestampSeconds,
+      samplingReason: "change-peak",
+      samplingSignal: candidate.source,
+      samplingScore: candidate.score,
+    };
+    if (canAddPlannedFrame(plannedFrame, chosen, minSpacingSeconds)) {
+      chosen.push(plannedFrame);
     }
   }
   for (const candidate of spreadCandidates) {
     if (chosen.length >= frameCount) break;
-    if (canAddTimestamp(candidate.timestampSeconds, chosenTimestamps, minSpacingSeconds)) {
-      chosen.push({
-        timestampSeconds: candidate.timestampSeconds,
-        samplingReason: "change-peak",
-        samplingSignal: candidate.source,
-        samplingScore: candidate.score,
-      });
-      chosenTimestamps.push(candidate.timestampSeconds);
+    const plannedFrame: PlannedStoryboardFrame = {
+      timestampSeconds: candidate.timestampSeconds,
+      samplingReason: "change-peak",
+      samplingSignal: candidate.source,
+      samplingScore: candidate.score,
+    };
+    if (canAddPlannedFrame(plannedFrame, chosen, minSpacingSeconds)) {
+      chosen.push(plannedFrame);
     }
   }
   addTimestamps(uniform, "uniform");

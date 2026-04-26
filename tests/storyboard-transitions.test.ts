@@ -206,3 +206,25 @@ test("uses fuzzy top shell anchors when OCR varies across the same app chrome", 
   assert.equal(transition.transitionKind, "state-change");
   assert.match(transition.inferredTransition, /same screen/i);
 });
+
+test("labels sign-in transitions from common auth UI variants", () => {
+  const previous = frame(1, [
+    line("Tech Helper", "top", 60),
+    line("Step 1: Send Your Print Job", "middle", 260, 480),
+    line("Step 2: Go to the Printer", "middle", 360, 480),
+  ]);
+  const current = frame(2, [
+    line("Tech Helper", "top", 60),
+    line("Sign In", "middle", 520, 160),
+    line("Please sign in so that the right printers are added to your device.", "middle", 580, 520),
+    line("Sign in and add printers", "bottom", 760, 320),
+  ]);
+
+  const transition = classifyStoryboardTransition(previous, current, {
+    visualDiffPercent: 0.19,
+    threshold: 0.02,
+  });
+
+  assert.match(transition.inferredTransition, /sign-in screen/i);
+  assert.ok(transition.confidence >= 0.88);
+});

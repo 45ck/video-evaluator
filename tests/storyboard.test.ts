@@ -76,6 +76,22 @@ test("buildHybridTimestamps can prioritize scored same-screen candidates", () =>
   assert.ok(timestamps.some((value) => Math.abs(value - 61) < 0.01));
 });
 
+test("buildHybridTimestamps can keep dense same-screen micro-sequences", () => {
+  const timestamps = buildHybridTimestamps(97.12, 8, [
+    { timestampSeconds: 23.309, source: "same-screen-change", score: 0.82 },
+    { timestampSeconds: 25.252, source: "same-screen-change", score: 0.74 },
+    { timestampSeconds: 27.194, source: "same-screen-change", score: 1 },
+    { timestampSeconds: 30.08, source: "scene-change", score: 0.7 },
+    { timestampSeconds: 50.12, source: "scene-change", score: 0.7 },
+    { timestampSeconds: 54.12, source: "scene-change", score: 0.7 },
+    { timestampSeconds: 70.72, source: "scene-change", score: 0.7 },
+  ]);
+
+  assert.ok(timestamps.some((value) => Math.abs(value - 23.309) < 0.01));
+  assert.ok(timestamps.some((value) => Math.abs(value - 25.252) < 0.01));
+  assert.ok(timestamps.some((value) => Math.abs(value - 27.194) < 0.01));
+});
+
 test("deriveSameScreenContextCandidates adds companion frames for strong local transitions only", () => {
   const candidates = deriveSameScreenContextCandidates([
     {
@@ -95,6 +111,13 @@ test("deriveSameScreenContextCandidates adds companion frames for strong local t
       timestampSeconds: 23.309,
       source: "same-screen-change",
       score: 0.82,
+      contextGenerated: true,
+      diagnostics: undefined,
+    },
+    {
+      timestampSeconds: 25.252,
+      source: "same-screen-change",
+      score: 0.74,
       contextGenerated: true,
       diagnostics: undefined,
     },

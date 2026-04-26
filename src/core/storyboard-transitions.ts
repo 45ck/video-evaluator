@@ -288,7 +288,16 @@ function inferTransition(
   );
   const evidence: string[] = [];
 
-  if (hasAny(addedLines, [/sign in to access the system/i, /^username$/i, /^password$/i])) {
+  if (
+    hasAny(addedLines, [
+      /sign in to access the system/i,
+      /\bsign\s?in\b/i,
+      /please sign in/i,
+      /^username$/i,
+      /^password$/i,
+      /add printers/i,
+    ])
+  ) {
     evidence.push("sign-in UI text appeared");
     return {
       label: "navigated to sign-in screen",
