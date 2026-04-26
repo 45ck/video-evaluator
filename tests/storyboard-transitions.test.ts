@@ -37,6 +37,7 @@ function frame(
     index,
     timestampSeconds: index * 10,
     imagePath: `/tmp/frame-${index}.jpg`,
+    samplingReason: "uniform",
     imageWidth: 1600,
     imageHeight,
     lines,
@@ -133,4 +134,40 @@ test("classifies a screen change when overlap collapses", () => {
   });
 
   assert.equal(transition.transitionKind, "screen-change");
+});
+
+test("uses same-screen sampling metadata to avoid false screen-change labels", () => {
+  const previous = {
+    ...frame(1, [
+      line("Tech Helper", "top", 60),
+      line("Win Network Guide", "top", 110),
+      line("Step 2: Select the network", "middle", 360, 420),
+      line("Message MC Tech Helper", "bottom", 860, 500),
+    ]),
+    samplingReason: "change-peak" as const,
+    samplingSignal: "same-screen-change" as const,
+    nearestChangeDistanceSeconds: 0,
+    samplingScore: 0.94,
+  };
+  const current = {
+    ...frame(2, [
+      line("Tech Helper", "top", 60),
+      line("Win Network Guide", "top", 110),
+      line("Step 3: Enter credentials", "middle", 380, 440),
+      line("Username: your MC email", "middle", 470, 460),
+      line("Message MC Tech Helper", "bottom", 860, 500),
+    ]),
+    samplingReason: "change-peak" as const,
+    samplingSignal: "same-screen-change" as const,
+    nearestChangeDistanceSeconds: 0,
+    samplingScore: 0.97,
+  };
+
+  const transition = classifyStoryboardTransition(previous, current, {
+    visualDiffPercent: 0.13,
+    threshold: 0.02,
+  });
+
+  assert.notEqual(transition.transitionKind, "screen-change");
+  assert.ok(["state-change", "dialog-change"].includes(transition.transitionKind));
 });

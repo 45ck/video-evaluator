@@ -13,6 +13,10 @@ export interface TransitionOcrFrame {
   index: number;
   timestampSeconds: number;
   imagePath: string;
+  samplingReason?: "uniform" | "change-peak" | "coverage-fill";
+  nearestChangeDistanceSeconds?: number;
+  samplingSignal?: "scene-change" | "same-screen-change";
+  samplingScore?: number;
   imageWidth?: number;
   imageHeight?: number;
   lines: Array<{
@@ -156,6 +160,8 @@ function getSharedLineInfo(previous: TransitionOcrFrame, current: TransitionOcrF
 }
 
 function inferGenericKind(
+  previous: TransitionOcrFrame,
+  current: TransitionOcrFrame,
   overlapRatio: number,
   visualDiffPercent: number,
   threshold: number,
@@ -172,6 +178,12 @@ function inferGenericKind(
   const consistentShiftCount = verticalShifts.filter(
     (value) => Math.sign(value) === Math.sign(meanShift) && Math.abs(value) >= 0.06,
   ).length;
+  const sameScreenProbeSupported =
+    previous.samplingSignal === "same-screen-change" ||
+    current.samplingSignal === "same-screen-change";
+  const probeDistanceSupported =
+    (typeof previous.nearestChangeDistanceSeconds === "number" && previous.nearestChangeDistanceSeconds <= 0.35) ||
+    (typeof current.nearestChangeDistanceSeconds === "number" && current.nearestChangeDistanceSeconds <= 0.35);
 
   if (sharedTopCount > 0 && overlapRatio >= 0.5 && consistentShiftCount >= 2) {
     evidence.push("stable top-region text stayed visible while shared lines shifted vertically");
@@ -192,6 +204,17 @@ function inferGenericKind(
   if (sharedTopCount > 0 && overlapRatio >= 0.35) {
     evidence.push("some top-region anchor text remained while content changed");
     return { kind: "state-change", confidence: 0.66, evidence };
+  }
+
+  if (
+    sameScreenProbeSupported &&
+    probeDistanceSupported &&
+    sharedTopCount > 0 &&
+    overlapRatio >= 0.1 &&
+    visualDiffPercent <= threshold * 8
+  ) {
+    evidence.push("sampler flagged a nearby same-screen local change and top anchors partially persisted");
+    return { kind: "state-change", confidence: 0.68, evidence };
   }
 
   if (overlapRatio <= 0.2 || visualDiffPercent > threshold * 6) {
@@ -226,6 +249,8 @@ function inferTransition(
     .filter(([key]) => !sharedInfo.currentMap.has(key))
     .map(([, line]) => line);
   const generic = inferGenericKind(
+    previous,
+    current,
     sharedInfo.overlapRatio,
     visualDiffPercent,
     threshold,

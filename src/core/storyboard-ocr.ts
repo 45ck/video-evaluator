@@ -14,6 +14,8 @@ interface StoryboardManifestFrame {
   imagePath: string;
   samplingReason?: "uniform" | "change-peak" | "coverage-fill";
   nearestChangeDistanceSeconds?: number;
+  samplingSignal?: "scene-change" | "same-screen-change";
+  samplingScore?: number;
 }
 
 interface StoryboardManifest {
@@ -47,6 +49,8 @@ export interface StoryboardOcrFrameResult {
   imagePath: string;
   samplingReason?: "uniform" | "change-peak" | "coverage-fill";
   nearestChangeDistanceSeconds?: number;
+  samplingSignal?: "scene-change" | "same-screen-change";
+  samplingScore?: number;
   imageWidth?: number;
   imageHeight?: number;
   lines: StoryboardOcrLine[];
@@ -334,6 +338,8 @@ export async function ocrStoryboard(input: StoryboardOcrRequest) {
             imagePath,
             samplingReason: undefined,
             nearestChangeDistanceSeconds: undefined,
+            samplingSignal: undefined,
+            samplingScore: undefined,
           }));
 
     const results: StoryboardOcrFrameResult[] = [];
@@ -366,6 +372,8 @@ export async function ocrStoryboard(input: StoryboardOcrRequest) {
         imagePath: frame.imagePath,
         samplingReason: frame.samplingReason,
         nearestChangeDistanceSeconds: frame.nearestChangeDistanceSeconds,
+        samplingSignal: frame.samplingSignal,
+        samplingScore: frame.samplingScore,
         imageWidth,
         imageHeight,
         lines,

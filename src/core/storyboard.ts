@@ -14,6 +14,8 @@ export interface StoryboardFrame {
   imagePath: string;
   samplingReason?: "uniform" | "change-peak" | "coverage-fill";
   nearestChangeDistanceSeconds?: number;
+  samplingSignal?: "scene-change" | "same-screen-change";
+  samplingScore?: number;
 }
 
 export interface StoryboardManifest {
@@ -33,6 +35,8 @@ export interface StoryboardManifest {
 interface PlannedStoryboardFrame {
   timestampSeconds: number;
   samplingReason: NonNullable<StoryboardFrame["samplingReason"]>;
+  samplingSignal?: StoryboardFrame["samplingSignal"];
+  samplingScore?: number;
 }
 
 interface ChangeCandidate {
@@ -115,32 +119,36 @@ function normalizeCandidates(
   durationSeconds: number,
   candidates: Array<number | ChangeCandidate>,
 ): ChangeCandidate[] {
-  return dedupeSortedTimestamps(
-    candidates
-      .map((candidate) =>
-        typeof candidate === "number"
-          ? { timestampSeconds: candidate, source: "scene-change" as const, score: 1 }
-          : candidate,
-      )
-      .filter((candidate) => Number.isFinite(candidate.timestampSeconds))
-      .filter((candidate) => candidate.timestampSeconds > 0 && candidate.timestampSeconds < durationSeconds)
-      .sort((left, right) => left.timestampSeconds - right.timestampSeconds)
-      .map((candidate) => candidate.timestampSeconds),
-  ).map((timestampSeconds) => {
-    const matching = candidates
-      .map((candidate) =>
-        typeof candidate === "number"
-          ? { timestampSeconds: candidate, source: "scene-change" as const, score: 1 }
-          : candidate,
-      )
-      .filter((candidate) => Math.abs(candidate.timestampSeconds - timestampSeconds) <= 0.001)
-      .sort((left, right) => right.score - left.score);
-    return matching[0] ?? {
-      timestampSeconds,
-      source: "scene-change" as const,
-      score: 1,
-    };
-  });
+  const mapped = candidates
+    .map((candidate) =>
+      typeof candidate === "number"
+        ? { timestampSeconds: candidate, source: "scene-change" as const, score: 1 }
+        : candidate,
+    )
+    .filter((candidate) => Number.isFinite(candidate.timestampSeconds))
+    .filter((candidate) => candidate.timestampSeconds > 0 && candidate.timestampSeconds < durationSeconds)
+    .sort((left, right) => left.timestampSeconds - right.timestampSeconds);
+
+  const merged: ChangeCandidate[] = [];
+  for (const candidate of mapped) {
+    const previous = merged[merged.length - 1];
+    if (!previous || Math.abs(previous.timestampSeconds - candidate.timestampSeconds) > 0.35) {
+      merged.push({ ...candidate });
+      continue;
+    }
+
+    const preferCurrent =
+      candidate.score > previous.score ||
+      (candidate.score === previous.score &&
+        candidate.source === "same-screen-change" &&
+        previous.source !== "same-screen-change");
+
+    if (preferCurrent) {
+      merged[merged.length - 1] = { ...candidate };
+    }
+  }
+
+  return merged;
 }
 
 export function inferSameScreenProbeScore(input: {
@@ -212,14 +220,38 @@ function buildHybridFramePlan(
         chosen.push({
           timestampSeconds: value,
           samplingReason,
+          samplingSignal: undefined,
+          samplingScore: undefined,
         });
         chosenTimestamps.push(value);
       }
     }
   };
 
-  addTimestamps(prioritizedCandidates.map((candidate) => candidate.timestampSeconds), "change-peak");
-  addTimestamps(spreadCandidates.map((candidate) => candidate.timestampSeconds), "change-peak");
+  for (const candidate of prioritizedCandidates) {
+    if (chosen.length >= frameCount) break;
+    if (canAddTimestamp(candidate.timestampSeconds, chosenTimestamps, minSpacingSeconds)) {
+      chosen.push({
+        timestampSeconds: candidate.timestampSeconds,
+        samplingReason: "change-peak",
+        samplingSignal: candidate.source,
+        samplingScore: candidate.score,
+      });
+      chosenTimestamps.push(candidate.timestampSeconds);
+    }
+  }
+  for (const candidate of spreadCandidates) {
+    if (chosen.length >= frameCount) break;
+    if (canAddTimestamp(candidate.timestampSeconds, chosenTimestamps, minSpacingSeconds)) {
+      chosen.push({
+        timestampSeconds: candidate.timestampSeconds,
+        samplingReason: "change-peak",
+        samplingSignal: candidate.source,
+        samplingScore: candidate.score,
+      });
+      chosenTimestamps.push(candidate.timestampSeconds);
+    }
+  }
   addTimestamps(uniform, "uniform");
   addTimestamps(fallbackGrid, "coverage-fill");
 
@@ -254,14 +286,14 @@ async function detectSceneChangeCandidates(videoPath: string, threshold: number)
     return [...stderr.matchAll(/pts_time:([0-9.]+)/g)].map((match) => ({
       timestampSeconds: Number(match[1]),
       source: "scene-change" as const,
-      score: 1,
+      score: 0.7,
     }));
   } catch (error) {
     const stderr = error && typeof error === "object" && "stderr" in error ? String(error.stderr ?? "") : "";
     const matches = [...stderr.matchAll(/pts_time:([0-9.]+)/g)].map((match) => ({
       timestampSeconds: Number(match[1]),
       source: "scene-change" as const,
-      score: 1,
+      score: 0.7,
     }));
     if (matches.length > 0) return matches;
     return [];
@@ -375,6 +407,8 @@ export async function extractStoryboard(input: StoryboardExtractRequest) {
       timestampSeconds,
       imagePath,
       samplingReason: plannedFrame.samplingReason,
+      samplingSignal: plannedFrame.samplingSignal,
+      samplingScore: plannedFrame.samplingScore,
       nearestChangeDistanceSeconds:
         input.samplingMode === "hybrid"
           ? nearestDistanceSeconds(
