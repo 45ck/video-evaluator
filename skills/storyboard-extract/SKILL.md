@@ -14,6 +14,7 @@ This skill owns:
 - extracting frames with `ffmpeg`
 - optional hybrid sampling that biases some frames toward likely scene changes
 - writing `storyboard.manifest.json`
+- carrying per-frame sampling reasons into the manifest when available
 - giving downstream reviewers stable image artifacts to inspect
 
 Repo-side runner:

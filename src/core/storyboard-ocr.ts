@@ -12,11 +12,16 @@ interface StoryboardManifestFrame {
   index: number;
   timestampSeconds: number;
   imagePath: string;
+  samplingReason?: "uniform" | "change-peak" | "coverage-fill";
+  nearestChangeDistanceSeconds?: number;
 }
 
 interface StoryboardManifest {
   outputDir: string;
   videoPath: string;
+  samplingMode?: "uniform" | "hybrid";
+  changeThreshold?: number;
+  detectedChangeCount?: number;
   frames: StoryboardManifestFrame[];
 }
 
@@ -40,6 +45,8 @@ export interface StoryboardOcrFrameResult {
   index: number;
   timestampSeconds: number;
   imagePath: string;
+  samplingReason?: "uniform" | "change-peak" | "coverage-fill";
+  nearestChangeDistanceSeconds?: number;
   imageWidth?: number;
   imageHeight?: number;
   lines: StoryboardOcrLine[];
@@ -53,6 +60,9 @@ export interface StoryboardOcrManifest {
   storyboardDir: string;
   videoPath: string;
   minConfidence: number;
+  samplingMode?: "uniform" | "hybrid";
+  changeThreshold?: number;
+  detectedChangeCount?: number;
   frames: StoryboardOcrFrameResult[];
   summary: {
     uniqueLines: string[];
@@ -322,6 +332,8 @@ export async function ocrStoryboard(input: StoryboardOcrRequest) {
             index: index + 1,
             timestampSeconds: 0,
             imagePath,
+            samplingReason: undefined,
+            nearestChangeDistanceSeconds: undefined,
           }));
 
     const results: StoryboardOcrFrameResult[] = [];
@@ -352,6 +364,8 @@ export async function ocrStoryboard(input: StoryboardOcrRequest) {
         index: frame.index,
         timestampSeconds: frame.timestampSeconds,
         imagePath: frame.imagePath,
+        samplingReason: frame.samplingReason,
+        nearestChangeDistanceSeconds: frame.nearestChangeDistanceSeconds,
         imageWidth,
         imageHeight,
         lines,
@@ -368,6 +382,9 @@ export async function ocrStoryboard(input: StoryboardOcrRequest) {
       storyboardDir,
       videoPath: storyboard.videoPath,
       minConfidence: input.minConfidence,
+      samplingMode: storyboard.samplingMode,
+      changeThreshold: storyboard.changeThreshold,
+      detectedChangeCount: storyboard.detectedChangeCount,
       frames: results,
       summary: {
         uniqueLines,

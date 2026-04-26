@@ -31,6 +31,7 @@ Current boundary:
 - now preserves per-line OCR boxes/regions when the OCR engine exposes them
 - now emits coarse transition kinds such as `screen-change` alongside flow labels
 - now extracts broader app/view/capability hints instead of only one hard-coded demo shape
+- now carries frame-level sampling reasons through extraction, OCR, and summary artifacts
 - still weak at full-sequence action reconstruction
 - still heuristic, not deep multimodal video understanding
 
@@ -89,6 +90,9 @@ scene-change detection to bias some frames toward likely transitions.
 This is still heuristic, but it gives the OCR/transition layers denser
 evidence around UI changes than pure even spacing.
 
+The storyboard manifest now includes per-frame `samplingReason` and
+`nearestChangeDistanceSeconds` when that evidence is available.
+
 OCR extracted storyboard frames:
 
 ```bash
@@ -116,6 +120,11 @@ cat <<'JSON' | node --import tsx scripts/harness/storyboard-understand.ts
 }
 JSON
 ```
+
+The summary artifact now includes a `sampling` section so downstream
+agents can see whether the evidence came from uniform or hybrid
+sampling, how many change-biased frames were selected, and whether the
+artifact predates frame-level sampling annotations.
 
 Infer transitions between storyboard frames:
 

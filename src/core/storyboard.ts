@@ -10,6 +10,8 @@ export interface StoryboardFrame {
   index: number;
   timestampSeconds: number;
   imagePath: string;
+  samplingReason?: "uniform" | "change-peak" | "coverage-fill";
+  nearestChangeDistanceSeconds?: number;
 }
 
 export interface StoryboardManifest {
@@ -24,6 +26,11 @@ export interface StoryboardManifest {
   changeThreshold?: number;
   detectedChangeCount?: number;
   frames: StoryboardFrame[];
+}
+
+interface PlannedStoryboardFrame {
+  timestampSeconds: number;
+  samplingReason: NonNullable<StoryboardFrame["samplingReason"]>;
 }
 
 async function probeDuration(videoPath: string): Promise<number> {
@@ -54,6 +61,13 @@ export function buildUniformTimestamps(durationSeconds: number, frameCount: numb
   );
 }
 
+function annotateUniformFrames(timestamps: number[]): PlannedStoryboardFrame[] {
+  return timestamps.map((timestampSeconds) => ({
+    timestampSeconds,
+    samplingReason: "uniform",
+  }));
+}
+
 function pickEvenlySpacedValues(values: number[], count: number): number[] {
   if (count <= 0 || values.length === 0) return [];
   if (count >= values.length) return [...values];
@@ -71,11 +85,20 @@ function canAddTimestamp(value: number, chosen: number[], minSpacingSeconds: num
   return chosen.every((existing) => Math.abs(existing - value) >= minSpacingSeconds);
 }
 
-export function buildHybridTimestamps(
+function nearestDistanceSeconds(value: number, candidates: number[]): number | undefined {
+  if (candidates.length === 0) return undefined;
+  return candidates.reduce((best, candidate) => {
+    const distance = Math.abs(candidate - value);
+    if (best === undefined || distance < best) return distance;
+    return best;
+  }, undefined as number | undefined);
+}
+
+function buildHybridFramePlan(
   durationSeconds: number,
   frameCount: number,
   candidateTimestamps: number[],
-): number[] {
+): PlannedStoryboardFrame[] {
   const uniform = buildUniformTimestamps(durationSeconds, frameCount);
   const minSpacingSeconds = Math.max(durationSeconds / Math.max(frameCount * 6, 1), 0.6);
   const normalizedCandidates = dedupeSortedTimestamps(
@@ -85,7 +108,7 @@ export function buildHybridTimestamps(
   );
 
   if (normalizedCandidates.length === 0) {
-    return uniform;
+    return annotateUniformFrames(uniform);
   }
 
   const candidateBudget = Math.min(
@@ -94,21 +117,41 @@ export function buildHybridTimestamps(
   );
   const prioritizedCandidates = pickEvenlySpacedValues(normalizedCandidates, candidateBudget);
   const fallbackGrid = buildUniformTimestamps(durationSeconds, Math.max(frameCount * 3, frameCount));
-  const chosen: number[] = [];
-  const addTimestamps = (values: number[]) => {
+  const chosen: PlannedStoryboardFrame[] = [];
+  const chosenTimestamps: number[] = [];
+  const addTimestamps = (
+    values: number[],
+    samplingReason: PlannedStoryboardFrame["samplingReason"],
+  ) => {
     for (const value of values) {
       if (chosen.length >= frameCount) return;
-      if (canAddTimestamp(value, chosen, minSpacingSeconds)) {
-        chosen.push(value);
+      if (canAddTimestamp(value, chosenTimestamps, minSpacingSeconds)) {
+        chosen.push({
+          timestampSeconds: value,
+          samplingReason,
+        });
+        chosenTimestamps.push(value);
       }
     }
   };
 
-  addTimestamps(prioritizedCandidates);
-  addTimestamps(uniform);
-  addTimestamps(fallbackGrid);
+  addTimestamps(prioritizedCandidates, "change-peak");
+  addTimestamps(uniform, "uniform");
+  addTimestamps(fallbackGrid, "coverage-fill");
 
-  return chosen.sort((left, right) => left - right).slice(0, frameCount);
+  return chosen
+    .sort((left, right) => left.timestampSeconds - right.timestampSeconds)
+    .slice(0, frameCount);
+}
+
+export function buildHybridTimestamps(
+  durationSeconds: number,
+  frameCount: number,
+  candidateTimestamps: number[],
+): number[] {
+  return buildHybridFramePlan(durationSeconds, frameCount, candidateTimestamps).map(
+    (frame) => frame.timestampSeconds,
+  );
 }
 
 async function detectChangeTimestamps(videoPath: string, threshold: number): Promise<number[]> {
@@ -143,13 +186,14 @@ export async function extractStoryboard(input: StoryboardExtractRequest) {
     input.samplingMode === "hybrid"
       ? await detectChangeTimestamps(videoPath, input.changeThreshold)
       : [];
-  const timestamps =
+  const framePlan =
     input.samplingMode === "hybrid"
-      ? buildHybridTimestamps(durationSeconds, input.frameCount, detectedChangeTimestamps)
-      : buildUniformTimestamps(durationSeconds, input.frameCount);
+      ? buildHybridFramePlan(durationSeconds, input.frameCount, detectedChangeTimestamps)
+      : annotateUniformFrames(buildUniformTimestamps(durationSeconds, input.frameCount));
   const frames: StoryboardFrame[] = [];
 
-  for (const [index, timestampSeconds] of timestamps.entries()) {
+  for (const [index, plannedFrame] of framePlan.entries()) {
+    const timestampSeconds = plannedFrame.timestampSeconds;
     const imagePath = join(outputDir, `frame-${String(index + 1).padStart(2, "0")}.${input.format}`);
     await execFileAsync("ffmpeg", [
       "-y",
@@ -165,6 +209,11 @@ export async function extractStoryboard(input: StoryboardExtractRequest) {
       index: index + 1,
       timestampSeconds,
       imagePath,
+      samplingReason: plannedFrame.samplingReason,
+      nearestChangeDistanceSeconds:
+        input.samplingMode === "hybrid"
+          ? nearestDistanceSeconds(timestampSeconds, detectedChangeTimestamps)
+          : undefined,
     });
   }
 

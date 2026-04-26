@@ -15,10 +15,14 @@ test("understandStoryboard extracts app names, views, capabilities, and transiti
       {
         storyboardDir,
         videoPath: "/tmp/rag-chat.mp4",
+        samplingMode: "hybrid",
+        detectedChangeCount: 6,
         frames: [
           {
             index: 1,
             timestampSeconds: 0,
+            samplingReason: "uniform",
+            nearestChangeDistanceSeconds: 2.5,
             lines: [
               { text: "Tech Helper", confidence: 90, region: "top" },
               { text: "How can I help you today?", confidence: 89, region: "middle" },
@@ -28,6 +32,8 @@ test("understandStoryboard extracts app names, views, capabilities, and transiti
           {
             index: 2,
             timestampSeconds: 10,
+            samplingReason: "change-peak",
+            nearestChangeDistanceSeconds: 0.1,
             lines: [
               { text: "Tech Helper", confidence: 92, region: "top" },
               { text: "Win Network Guide", confidence: 85, region: "middle" },
@@ -38,6 +44,8 @@ test("understandStoryboard extracts app names, views, capabilities, and transiti
           {
             index: 3,
             timestampSeconds: 20,
+            samplingReason: "change-peak",
+            nearestChangeDistanceSeconds: 0.2,
             lines: [
               { text: "Tech Helper", confidence: 91, region: "top" },
               { text: "Win Network Guide", confidence: 84, region: "middle" },
@@ -47,6 +55,8 @@ test("understandStoryboard extracts app names, views, capabilities, and transiti
           {
             index: 4,
             timestampSeconds: 30,
+            samplingReason: "coverage-fill",
+            nearestChangeDistanceSeconds: 1.7,
             lines: [
               { text: "MC ICT Documentation", confidence: 93, region: "top" },
               { text: "Getting Started", confidence: 87, region: "middle" },
@@ -97,6 +107,12 @@ test("understandStoryboard extracts app names, views, capabilities, and transiti
   assert.ok(written.appNames.includes("Tech Helper"));
   assert.ok(written.appNames.some((name: string) => /documentation/i.test(name)));
   assert.ok(written.views.includes("Win Network Guide"));
+  assert.equal(written.sampling.mode, "hybrid");
+  assert.equal(written.sampling.detectedChangeCount, 6);
+  assert.equal(written.sampling.frameReasonCounts["change-peak"], 2);
+  assert.equal(written.sampling.frameReasonCounts.uniform, 1);
+  assert.equal(written.sampling.frameReasonCounts["coverage-fill"], 1);
+  assert.ok(written.sampling.notes.some((note: string) => /Hybrid sampling used 2 change-biased frames/.test(note)));
   assert.ok(
     written.likelyCapabilities.some((claim: { claim: string }) =>
       claim.claim.includes("chat-style IT help or guided support"),

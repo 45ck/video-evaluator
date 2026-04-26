@@ -5,14 +5,29 @@ import type { StoryboardUnderstandRequest } from "./schemas.js";
 interface OcrFrame {
   index: number;
   timestampSeconds: number;
+  samplingReason?: "uniform" | "change-peak" | "coverage-fill";
+  nearestChangeDistanceSeconds?: number;
   lines: Array<{ text: string; confidence: number; region?: "top" | "middle" | "bottom" }>;
 }
 
 interface OcrManifest {
   storyboardDir: string;
   videoPath: string;
+  samplingMode?: "uniform" | "hybrid";
+  changeThreshold?: number;
+  detectedChangeCount?: number;
   frames: OcrFrame[];
   summary?: { uniqueLines?: string[] };
+}
+
+interface StoryboardManifestFallback {
+  samplingMode?: "uniform" | "hybrid";
+  detectedChangeCount?: number;
+  frames?: Array<{
+    index: number;
+    samplingReason?: "uniform" | "change-peak" | "coverage-fill";
+    nearestChangeDistanceSeconds?: number;
+  }>;
 }
 
 interface TransitionsManifest {
@@ -41,6 +56,13 @@ export interface StoryboardSummaryManifest {
   videoPath: string;
   appNames: string[];
   views: string[];
+  sampling: {
+    mode?: "uniform" | "hybrid";
+    detectedChangeCount?: number;
+    frameReasonCounts: Record<"uniform" | "change-peak" | "coverage-fill", number>;
+    averageNearestChangeDistanceSeconds?: number;
+    notes: string[];
+  };
   likelyFlow: string[];
   likelyCapabilities: SummaryClaim[];
   openQuestions: string[];
@@ -276,10 +298,86 @@ function buildClaims(frames: OcrFrame[]): SummaryClaim[] {
   return claims;
 }
 
+function buildSamplingSummary(
+  manifest: OcrManifest,
+  fallback: StoryboardManifestFallback | null,
+): StoryboardSummaryManifest["sampling"] {
+  const frameReasonCounts = {
+    uniform: 0,
+    "change-peak": 0,
+    "coverage-fill": 0,
+  } satisfies Record<"uniform" | "change-peak" | "coverage-fill", number>;
+  const changeDistances: number[] = [];
+  let annotatedFrameCount = 0;
+  const fallbackFrames = new Map((fallback?.frames ?? []).map((frame) => [frame.index, frame]));
+  for (const frame of manifest.frames) {
+    const fallbackFrame = fallbackFrames.get(frame.index);
+    const reason = frame.samplingReason ?? fallbackFrame?.samplingReason ?? "uniform";
+    if (frame.samplingReason || fallbackFrame?.samplingReason) {
+      annotatedFrameCount += 1;
+    }
+    frameReasonCounts[reason] += 1;
+    const nearestDistance = frame.nearestChangeDistanceSeconds ?? fallbackFrame?.nearestChangeDistanceSeconds;
+    if (typeof nearestDistance === "number" && Number.isFinite(nearestDistance)) {
+      changeDistances.push(nearestDistance);
+    }
+  }
+
+  const averageNearestChangeDistanceSeconds =
+    changeDistances.length > 0
+      ? Number(
+          (
+            changeDistances.reduce((sum, value) => sum + value, 0) /
+            Math.max(1, changeDistances.length)
+          ).toFixed(3),
+        )
+      : undefined;
+  const notes: string[] = [];
+  const effectiveSamplingMode = manifest.samplingMode ?? fallback?.samplingMode;
+  const effectiveDetectedChangeCount = manifest.detectedChangeCount ?? fallback?.detectedChangeCount;
+
+  if (effectiveSamplingMode === "hybrid") {
+    if (annotatedFrameCount > 0) {
+      notes.push(
+        `Hybrid sampling used ${frameReasonCounts["change-peak"]} change-biased frames and ${frameReasonCounts["coverage-fill"]} coverage-fill frames.`,
+      );
+    } else {
+      notes.push("Hybrid sampling metadata exists, but this artifact does not include frame-level sampling annotations.");
+    }
+    if (typeof effectiveDetectedChangeCount === "number") {
+      notes.push(`Detected ${effectiveDetectedChangeCount} candidate change points before frame selection.`);
+    }
+    if (typeof averageNearestChangeDistanceSeconds === "number") {
+      notes.push(
+        `Selected frames were on average ${averageNearestChangeDistanceSeconds}s from the nearest detected change point.`,
+      );
+    }
+  } else {
+    notes.push("Uniform sampling was used, so local UI changes between frames may be missed.");
+  }
+
+  return {
+    mode: effectiveSamplingMode,
+    detectedChangeCount: effectiveDetectedChangeCount,
+    frameReasonCounts,
+    averageNearestChangeDistanceSeconds,
+    notes,
+  };
+}
+
 async function readTransitions(storyboardDir: string): Promise<TransitionsManifest | null> {
   try {
     const raw = await readFile(join(storyboardDir, "storyboard.transitions.json"), "utf8");
     return JSON.parse(raw) as TransitionsManifest;
+  } catch {
+    return null;
+  }
+}
+
+async function readStoryboardSamplingFallback(storyboardDir: string): Promise<StoryboardManifestFallback | null> {
+  try {
+    const raw = await readFile(join(storyboardDir, "storyboard.manifest.json"), "utf8");
+    return JSON.parse(raw) as StoryboardManifestFallback;
   } catch {
     return null;
   }
@@ -298,6 +396,7 @@ function buildLikelyFlow(transitions: TransitionsManifest | null): string[] {
 export async function understandStoryboard(input: StoryboardUnderstandRequest) {
   const { ocrPath, manifest } = await readOcrManifest(input);
   const transitions = await readTransitions(manifest.storyboardDir);
+  const storyboardFallback = await readStoryboardSamplingFallback(manifest.storyboardDir);
   const appNames = findAppNames(manifest.frames);
   const views = findViews(manifest.frames, appNames);
   const summary: StoryboardSummaryManifest = {
@@ -308,6 +407,7 @@ export async function understandStoryboard(input: StoryboardUnderstandRequest) {
     videoPath: manifest.videoPath,
     appNames,
     views,
+    sampling: buildSamplingSummary(manifest, storyboardFallback),
     likelyFlow: buildLikelyFlow(transitions),
     likelyCapabilities: buildClaims(manifest.frames),
     openQuestions: [
