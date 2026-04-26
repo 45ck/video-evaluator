@@ -34,10 +34,12 @@ export interface StoryboardManifest {
       "scene-change": number;
       "same-screen-change": number;
     };
+    contextGeneratedCount?: number;
     topCandidates: Array<{
       timestampSeconds: number;
       source: "scene-change" | "same-screen-change";
       score: number;
+      contextGenerated?: boolean;
       diagnostics?: {
         overallDiffPercent?: number;
         topDiffPercent?: number;
@@ -60,6 +62,7 @@ interface ChangeCandidate {
   timestampSeconds: number;
   source: "scene-change" | "same-screen-change";
   score: number;
+  contextGenerated?: boolean;
   diagnostics?: {
     overallDiffPercent?: number;
     topDiffPercent?: number;
@@ -192,6 +195,25 @@ export function inferSameScreenProbeScore(input: {
   return Number(
     Math.max(0, Math.min(1, localChangeStrength * 8 + lowerRegionDelta * 1.5 - input.overallDiffPercent)).toFixed(4),
   );
+}
+
+export function deriveSameScreenContextCandidates(
+  transitions: Array<{
+    previousTimestampSeconds: number;
+    currentTimestampSeconds: number;
+    score: number;
+    diagnostics?: ChangeCandidate["diagnostics"];
+  }>,
+): ChangeCandidate[] {
+  return transitions
+    .filter((transition) => transition.score >= 0.85)
+    .map((transition) => ({
+      timestampSeconds: transition.previousTimestampSeconds,
+      source: "same-screen-change" as const,
+      score: Number(Math.max(0.72, Math.min(0.88, transition.score * 0.82)).toFixed(4)),
+      contextGenerated: true,
+      diagnostics: transition.diagnostics,
+    }));
 }
 
 function selectCandidatePeaks(
@@ -359,11 +381,17 @@ async function detectSameScreenChangeCandidates(
   videoPath: string,
   durationSeconds: number,
   frameCount: number,
-): Promise<ChangeCandidate[]> {
+): Promise<{ primaryCandidates: ChangeCandidate[]; contextCandidates: ChangeCandidate[] }> {
   const tempDir = await mkdtemp(join(tmpdir(), "video-evaluator-probe-"));
   try {
     const probeFrames = await extractProbeFrames(videoPath, durationSeconds, frameCount, tempDir);
-    const candidates: ChangeCandidate[] = [];
+    const primaryCandidates: ChangeCandidate[] = [];
+    const scoredTransitions: Array<{
+      previousTimestampSeconds: number;
+      currentTimestampSeconds: number;
+      score: number;
+      diagnostics?: ChangeCandidate["diagnostics"];
+    }> = [];
 
     for (let index = 1; index < probeFrames.length; index += 1) {
       const previous = probeFrames[index - 1];
@@ -381,21 +409,31 @@ async function detectSameScreenChangeCandidates(
         bottomDiffPercent: bottom.mismatchPercent,
       });
       if (score > 0) {
-        candidates.push({
+        const diagnostics = {
+          overallDiffPercent: overall.mismatchPercent,
+          topDiffPercent: top.mismatchPercent,
+          middleDiffPercent: middle.mismatchPercent,
+          bottomDiffPercent: bottom.mismatchPercent,
+        };
+        primaryCandidates.push({
           timestampSeconds: current.timestampSeconds,
           source: "same-screen-change",
           score,
-          diagnostics: {
-            overallDiffPercent: overall.mismatchPercent,
-            topDiffPercent: top.mismatchPercent,
-            middleDiffPercent: middle.mismatchPercent,
-            bottomDiffPercent: bottom.mismatchPercent,
-          },
+          diagnostics,
+        });
+        scoredTransitions.push({
+          previousTimestampSeconds: previous.timestampSeconds,
+          currentTimestampSeconds: current.timestampSeconds,
+          score,
+          diagnostics,
         });
       }
     }
 
-    return candidates;
+    return {
+      primaryCandidates,
+      contextCandidates: deriveSameScreenContextCandidates(scoredTransitions),
+    };
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -407,21 +445,29 @@ export async function extractStoryboard(input: StoryboardExtractRequest) {
   await mkdir(outputDir, { recursive: true });
 
   const durationSeconds = await probeDuration(videoPath);
-  const detectedChangeCandidates =
+  const hybridCandidateSet =
     input.samplingMode === "hybrid"
-      ? [
-          ...(await detectSceneChangeCandidates(videoPath, input.changeThreshold)),
-          ...(await detectSameScreenChangeCandidates(videoPath, durationSeconds, input.frameCount)),
-        ]
-      : [];
+      ? await (async () => {
+          const sceneCandidates = await detectSceneChangeCandidates(videoPath, input.changeThreshold);
+          const sameScreen = await detectSameScreenChangeCandidates(videoPath, durationSeconds, input.frameCount);
+          return {
+            allCandidates: [...sceneCandidates, ...sameScreen.primaryCandidates, ...sameScreen.contextCandidates],
+            primaryCandidates: [...sceneCandidates, ...sameScreen.primaryCandidates],
+            contextGeneratedCount: sameScreen.contextCandidates.length,
+          };
+        })()
+      : { allCandidates: [], primaryCandidates: [], contextGeneratedCount: 0 };
+  const detectedChangeCandidates = hybridCandidateSet.allCandidates;
+  const primaryChangeCandidates = hybridCandidateSet.primaryCandidates;
   const candidateDiagnostics =
     input.samplingMode === "hybrid"
       ? {
           sourceCounts: {
-            "scene-change": detectedChangeCandidates.filter((candidate) => candidate.source === "scene-change").length,
-            "same-screen-change": detectedChangeCandidates.filter((candidate) => candidate.source === "same-screen-change")
+            "scene-change": primaryChangeCandidates.filter((candidate) => candidate.source === "scene-change").length,
+            "same-screen-change": primaryChangeCandidates.filter((candidate) => candidate.source === "same-screen-change")
               .length,
           },
+          contextGeneratedCount: hybridCandidateSet.contextGeneratedCount,
           topCandidates: [...detectedChangeCandidates]
             .sort((left, right) => right.score - left.score || left.timestampSeconds - right.timestampSeconds)
             .slice(0, 12)
@@ -429,6 +475,7 @@ export async function extractStoryboard(input: StoryboardExtractRequest) {
               timestampSeconds: candidate.timestampSeconds,
               source: candidate.source,
               score: candidate.score,
+              contextGenerated: candidate.contextGenerated,
               diagnostics: candidate.diagnostics,
             })),
         }
@@ -463,7 +510,7 @@ export async function extractStoryboard(input: StoryboardExtractRequest) {
         input.samplingMode === "hybrid"
           ? nearestDistanceSeconds(
               timestampSeconds,
-              detectedChangeCandidates.map((candidate) => candidate.timestampSeconds),
+              primaryChangeCandidates.map((candidate) => candidate.timestampSeconds),
             )
           : undefined,
     });
@@ -479,7 +526,7 @@ export async function extractStoryboard(input: StoryboardExtractRequest) {
     format: input.format,
     samplingMode: input.samplingMode,
     changeThreshold: input.samplingMode === "hybrid" ? input.changeThreshold : undefined,
-    detectedChangeCount: input.samplingMode === "hybrid" ? detectedChangeCandidates.length : undefined,
+    detectedChangeCount: input.samplingMode === "hybrid" ? primaryChangeCandidates.length : undefined,
     candidateDiagnostics,
     frames,
   };

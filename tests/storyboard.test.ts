@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   buildHybridTimestamps,
   buildUniformTimestamps,
+  deriveSameScreenContextCandidates,
   inferSameScreenProbeScore,
 } from "../src/core/storyboard.js";
 
@@ -73,4 +74,29 @@ test("buildHybridTimestamps can prioritize scored same-screen candidates", () =>
   assert.equal(timestamps.length, 6);
   assert.ok(timestamps.some((value) => Math.abs(value - 18) < 0.01));
   assert.ok(timestamps.some((value) => Math.abs(value - 61) < 0.01));
+});
+
+test("deriveSameScreenContextCandidates adds companion frames for strong local transitions only", () => {
+  const candidates = deriveSameScreenContextCandidates([
+    {
+      previousTimestampSeconds: 23.309,
+      currentTimestampSeconds: 27.194,
+      score: 1,
+    },
+    {
+      previousTimestampSeconds: 37.382,
+      currentTimestampSeconds: 40.498,
+      score: 0.2035,
+    },
+  ]);
+
+  assert.deepEqual(candidates, [
+    {
+      timestampSeconds: 23.309,
+      source: "same-screen-change",
+      score: 0.82,
+      contextGenerated: true,
+      diagnostics: undefined,
+    },
+  ]);
 });
