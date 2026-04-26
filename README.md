@@ -1,70 +1,147 @@
 # video-evaluator
 
-Shared video evaluation and understanding skill pack for coding-agent
-workflows.
+`video-evaluator` is a standalone video review and understanding pack for
+Codex, Claude Code, and other coding-agent workflows.
 
-This repo is a standalone evaluation pack that is meant to be proven
-useful before other repos depend on it. It does not replace
-domain-specific generation or QA pipelines. It owns the generic pieces:
+Its job is not to render videos or replace domain-specific QA. Its job
+is to take a video or a video-output bundle, extract grounded evidence,
+and give an agent a shared way to inspect what happened.
 
-- artifact-bundle intake
-- latest-run discovery
-- storyboard frame extraction
-- hybrid storyboard sampling that can bias frames toward likely scene/change points
-- region-aware probe scoring for same-screen local UI changes
-- OCR over extracted storyboard frames
-- heuristic storyboard understanding from OCR evidence
-- frame-to-frame transition inference from image diffs and OCR/layout deltas
-- report/status normalization
-- review prompt packaging
-- bundle-to-bundle comparison
-- installable Codex/Claude Code skills
+This repo exists as a shared layer that should prove itself useful
+before other repos depend on it.
 
-The current shape is intentionally narrow. It helps agents understand
-what a video run produced and how to review it, without pretending one
-generic scorer can replace domain-specific checks.
+## What This Repo Is
 
-Current boundary:
+This repo is for:
 
-- good at evidence extraction for UI-heavy product videos
-- good at turning artifacts into grounded review prompts
-- decent at first-pass OCR-backed product understanding
-- now preserves per-line OCR boxes/regions when the OCR engine exposes them
-- now emits coarse transition kinds such as `screen-change` alongside flow labels
-- now extracts broader app/view/capability hints instead of only one hard-coded demo shape
-- now carries frame-level sampling reasons through extraction, OCR, and summary artifacts
-- still weak at full-sequence action reconstruction
-- still heuristic, not deep multimodal video understanding
+- extracting storyboard frames from videos
+- biasing those frames toward likely change points
+- OCRing the extracted frames
+- inferring coarse transitions between frames
+- generating summary artifacts from OCR evidence
+- packaging review prompts for agent use
+- comparing two video bundles or runs
+- materializing an installable skill pack for Codex or Claude Code
 
-## Shipped Tools
+This repo is not:
 
-- `skill-catalog`
-- `install-skill-pack`
-- `video-intake`
-- `review-bundle`
-- `storyboard-extract`
-- `storyboard-ocr`
-- `storyboard-understand`
-- `storyboard-transitions`
-- `compare-bundles`
-- `package-review-prompt`
+- a video generator
+- a full multimodal model runtime
+- a guaranteed semantic video decompiler
+- a replacement for product-specific evaluation logic
 
-## Local Use
+## Current Capability Boundary
 
-Prerequisites:
+What it does reasonably well today:
+
+- turns local videos into structured storyboard artifacts
+- works well enough for first-pass review of UI-heavy product videos
+- extracts OCR, basic layout regions, and coarse transition structure
+- packages grounded prompts so agents can review runs from real artifacts
+- gives multiple repos a common evidence format
+
+What it does not do well enough yet:
+
+- exact action-by-action timeline reconstruction
+- reliable understanding of arbitrary public YouTube videos
+- robust app/view/capability extraction across noisy OCR
+- strong semantic understanding of gameplay, cooking, vlogs, sports, or talks
+
+The benchmark work in this repo exists to keep those limits honest.
+
+## How It Works
+
+The pipeline is:
+
+1. `video-intake` or `review-bundle`
+2. `storyboard-extract`
+3. `storyboard-ocr`
+4. `storyboard-transitions`
+5. `storyboard-understand`
+6. `package-review-prompt` or `compare-bundles`
+
+In plain English:
+
+1. Start from either a raw local video or an existing run/output folder.
+2. Extract a small set of frames across the video.
+3. Bias some of those frames toward likely changes.
+4. OCR the frames into text lines with confidence and coarse regions.
+5. Infer whether frames look like screen changes, same-screen changes,
+   dialog changes, or scroll changes.
+6. Summarize the artifact into a form an agent can actually use.
+
+## Repo Layout
+
+```text
+agent/
+  run-tool.mjs                 JSON-stdio tool runner for installed packs
+benchmarks/
+  youtube-diverse-queries.json Public benchmark manifest
+scripts/
+  bench/                       Benchmark runners
+  harness/                     Local CLI entrypoints
+skills/
+  ...                          Installable skill definitions and examples
+src/
+  core/                        Artifact logic
+  harness/                     Tool wrappers
+  index.ts                     Public exports
+tests/
+  *.test.ts                    Unit tests
+```
+
+## Requirements
 
 - Node.js `>=20.6.0`
 - `ffmpeg` and `ffprobe` on `PATH`
-- bundled `eng.traineddata` or network access for `tesseract.js` to
-  fetch language data on first use
+- bundled `eng.traineddata` or network access for `tesseract.js`
+- for the YouTube benchmark:
+  - `python3`
+  - `pip`
+  - optionally Firefox cookies for more reliable downloads
+
+## Quick Start
+
+Install and verify the repo:
 
 ```bash
 npm install
-npm run build
+npm run typecheck
 npm test
+npm run build
 ```
 
-Review a bundle:
+Run the simplest local pipeline from a raw video:
+
+```bash
+cat <<'JSON' | node --import tsx scripts/harness/storyboard-extract.ts
+{
+  "videoPath": "/path/to/video.mp4",
+  "frameCount": 8,
+  "samplingMode": "hybrid"
+}
+JSON
+
+cat <<'JSON' | node --import tsx scripts/harness/storyboard-ocr.ts
+{
+  "storyboardDir": "/path/to/video-evaluator-storyboard"
+}
+JSON
+
+cat <<'JSON' | node --import tsx scripts/harness/storyboard-transitions.ts
+{
+  "storyboardDir": "/path/to/video-evaluator-storyboard"
+}
+JSON
+
+cat <<'JSON' | node --import tsx scripts/harness/storyboard-understand.ts
+{
+  "storyboardDir": "/path/to/video-evaluator-storyboard"
+}
+JSON
+```
+
+If you already have a run folder and want a review-oriented entrypoint:
 
 ```bash
 cat <<'JSON' | node --import tsx scripts/harness/review-bundle.ts
@@ -74,61 +151,119 @@ cat <<'JSON' | node --import tsx scripts/harness/review-bundle.ts
 JSON
 ```
 
-Extract storyboard frames from a raw video:
+## Main Tools
+
+### `skill-catalog`
+
+Lists the skill surface shipped by this repo.
+
+Use when:
+
+- you want an agent to discover what this repo exposes
+- you are installing the pack into another workspace
+
+### `install-skill-pack`
+
+Copies the repo's built runtime, skills, and metadata into a target
+directory and installs runtime dependencies there.
+
+Example:
+
+```bash
+cat <<'JSON' | node --import tsx scripts/harness/install-skill-pack.ts
+{
+  "targetDir": ".video-evaluator"
+}
+JSON
+```
+
+Installed packs are intended to be called through:
+
+```bash
+cat <<'JSON' | node ./.video-evaluator/agent/run-tool.mjs package-review-prompt
+{
+  "outputDir": "./output/storyboard",
+  "focus": ["what the app appears to do", "flow progression"]
+}
+JSON
+```
+
+### `video-intake`
+
+Normalizes a local video artifact or bundle into a shared evaluation
+shape.
+
+Use when:
+
+- you need a common artifact contract before review
+- you are unifying outputs from different repos
+
+### `storyboard-extract`
+
+Extracts a small set of frames from a video.
+
+Important options:
+
+- `frameCount`
+- `samplingMode`
+- `changeThreshold`
+- `format`
+
+Example:
 
 ```bash
 cat <<'JSON' | node --import tsx scripts/harness/storyboard-extract.ts
 {
   "videoPath": "/path/to/video.mp4",
-  "frameCount": 6,
-  "samplingMode": "hybrid"
+  "frameCount": 8,
+  "samplingMode": "hybrid",
+  "changeThreshold": 0.08,
+  "format": "jpg"
 }
 JSON
 ```
 
-`samplingMode: "hybrid"` keeps the uniform backbone but uses ffmpeg
-scene-change detection plus a region-aware probe to bias some frames
-toward likely transitions and same-screen local UI changes. This is
-still heuristic, but it gives the OCR/transition layers denser evidence
-around UI changes than pure even spacing.
+### `storyboard-ocr`
 
-The storyboard manifest now includes per-frame `samplingReason` and
-`nearestChangeDistanceSeconds` when that evidence is available.
+Runs OCR over extracted frames and writes `storyboard.ocr.json`.
 
-OCR extracted storyboard frames:
+The OCR artifact tries to preserve:
+
+- line text
+- line confidence
+- line bounding boxes
+- coarse `top` / `middle` / `bottom` region labels
+
+Example:
 
 ```bash
 cat <<'JSON' | node --import tsx scripts/harness/storyboard-ocr.ts
 {
-  "storyboardDir": "./output/storyboard"
+  "storyboardDir": "./output/storyboard",
+  "minConfidence": 45
 }
 JSON
 ```
 
-The OCR artifact now attempts to preserve:
+### `storyboard-transitions`
 
-- per-line confidence
-- per-line bounding boxes
-- coarse `top` / `middle` / `bottom` regions
+Infers coarse transitions between storyboard frames.
 
-when the OCR engine exposes block/layout data.
+Current transition kinds:
 
-Generate an evidence-backed storyboard summary:
+- `screen-change`
+- `state-change`
+- `scroll-change`
+- `dialog-change`
+- `uncertain`
 
-```bash
-cat <<'JSON' | node --import tsx scripts/harness/storyboard-understand.ts
-{
-  "storyboardDir": "./output/storyboard"
-}
-JSON
-```
+The artifact also carries fields like:
 
-The summary artifact now includes a `sampling` section so downstream
-agents can see whether the evidence came from uniform or hybrid
-sampling, how many change-biased frames were selected, and whether the
-artifact predates frame-level sampling annotations.
+- `overlapRatio`
+- `sharedLineCount`
+- OCR-derived transition evidence
 
-Infer transitions between storyboard frames:
+Example:
 
 ```bash
 cat <<'JSON' | node --import tsx scripts/harness/storyboard-transitions.ts
@@ -138,14 +273,97 @@ cat <<'JSON' | node --import tsx scripts/harness/storyboard-transitions.ts
 JSON
 ```
 
-The transitions artifact now includes:
+### `storyboard-understand`
 
-- `transitionKind`
-- `overlapRatio`
-- `sharedLineCount`
-- OCR-derived evidence strings
+Builds a higher-level summary from OCR and transition artifacts.
 
-Run the mixed public-video benchmark:
+The current summary includes:
+
+- `appNames`
+- `views`
+- `sampling`
+- `interactionSegments`
+- `likelyFlow`
+- `likelyCapabilities`
+- `textDominance`
+- `openQuestions`
+
+`textDominance` is there to help interpret whether OCR looks more like:
+
+- UI labels
+- subtitle / narration text
+- mixed evidence
+
+Example:
+
+```bash
+cat <<'JSON' | node --import tsx scripts/harness/storyboard-understand.ts
+{
+  "storyboardDir": "./output/storyboard"
+}
+JSON
+```
+
+### `review-bundle`
+
+Runs the repo's review-oriented bundle path so an agent can inspect an
+existing output folder without manually stitching every stage together.
+
+### `compare-bundles`
+
+Compares two artifact bundles or runs.
+
+Use when:
+
+- you want to compare revisions
+- you want to inspect a before/after video pipeline change
+
+### `package-review-prompt`
+
+Builds a grounded prompt from the artifacts so an agent can review the
+video with actual evidence, not speculation.
+
+## Artifacts Written By The Pipeline
+
+Typical files:
+
+- `storyboard.manifest.json`
+- `storyboard.ocr.json`
+- `storyboard.transitions.json`
+- `storyboard.summary.json`
+
+What they mean:
+
+- `storyboard.manifest.json`
+  - extracted frame list
+  - sampling reasons
+  - change-point diagnostics
+- `storyboard.ocr.json`
+  - OCR output per frame
+  - line text, confidence, boxes, and regions
+- `storyboard.transitions.json`
+  - coarse frame-to-frame transition inference
+- `storyboard.summary.json`
+  - agent-facing high-level interpretation of the artifact
+
+## Hybrid Sampling
+
+`samplingMode: "hybrid"` is the default mode worth caring about here.
+
+It keeps a uniform backbone, then biases additional frames toward:
+
+- scene changes
+- same-screen local changes
+- denser local UI sequences when they look important
+
+This helps the later OCR and transition layers see more of what changed
+without trying to decode every frame in the full video.
+
+It is still heuristic.
+
+## Benchmarking
+
+The repo includes a public benchmark runner:
 
 ```bash
 npm run benchmark:youtube -- --limit=3
@@ -161,86 +379,210 @@ Useful flags:
 - `--change-threshold=0.08`
 - `--min-confidence=45`
 
-The benchmark resolves each query with `yt-dlp`, downloads a public
-sample, clips it, runs storyboard extraction/OCR/transitions/summary,
-and writes:
+What the benchmark does:
 
-- per-case `case-report.json`
-- aggregate `benchmark.report.json`
-- human-readable `benchmark.report.md`
+1. resolves a public video source
+2. downloads it with `yt-dlp`
+3. clips the requested segment
+4. runs extraction, OCR, transitions, and summary
+5. writes:
+   - per-case `case-report.json`
+   - aggregate `benchmark.report.json`
+   - aggregate `benchmark.report.md`
 
-The aggregate benchmark report distinguishes raw flow recovery from
-meaningful flow recovery. Cases that only produce generic
-`screen-change` transitions are still recorded, but they are not counted
-as meaningful interaction/flow success.
+### Benchmark Manifest
 
-Manifest entries can set `startSeconds` to skip title-card/introduction
-sections and target the real product segment of a video.
+The benchmark manifest lives at:
 
-For stable benchmarks, prefer pinning `videoId` plus optional
-`channelContains` / `titleContains` in the manifest. Query-only entries
-are useful for exploration, but they should be treated as provisional
-because live YouTube ranking can drift.
+- [benchmarks/youtube-diverse-queries.json](./benchmarks/youtube-diverse-queries.json)
 
-If the machine has an old global `yt-dlp`, the benchmark will bootstrap
-a newer copy into its output tooling directory and prefer Firefox
-cookies when available.
+Each entry can include:
 
-This is intended to expose capability boundaries across very different
-video shapes, not to claim that the pack can fully decompile arbitrary
-videos yet.
+- `id`
+- `category`
+- `query`
+- `expectedFit`
+- `videoId`
+- `url`
+- `channelContains`
+- `titleContains`
+- `resolvedAt`
+- `startSeconds`
+- `clipSeconds`
 
-Install the skill pack into another repo:
+Recommended policy:
+
+- use `videoId` for stable benchmarks
+- keep `query` as provenance or fallback
+- use `channelContains` and `titleContains` as human-auditable intent
+- use `startSeconds` to skip intro cards and target the real segment
+
+### Interpreting Benchmark Results
+
+The aggregate report distinguishes between:
+
+- raw flow recovery
+- meaningful flow recovery
+
+This matters because a case that only says:
+
+- `screen-change`
+- `screen-change`
+- `screen-change`
+
+did technically produce flow output, but it did not produce useful
+understanding.
+
+The current repo writes both numbers so the benchmark does not inflate
+itself.
+
+### YouTube Download Notes
+
+The benchmark will try to stay operational on machines with old global
+`yt-dlp` installs.
+
+If needed, it will:
+
+- bootstrap a newer `yt-dlp` into the benchmark tooling directory
+- prefer Firefox cookies when available
+
+This is done to keep the benchmark reproducible in practice, not just in
+theory.
+
+## Skills
+
+This repo ships installable skills under `skills/`.
+
+Current skill set:
+
+- `skill-catalog`
+- `install-skill-pack`
+- `video-artifact-intake`
+- `review-bundle`
+- `storyboard-extract`
+- `storyboard-ocr`
+- `storyboard-transitions`
+- `storyboard-understand`
+- `compare-video-runs`
+- `package-review-prompt`
+
+These are meant to give Codex and Claude Code a shared operational
+surface without requiring each repo to invent its own evaluation verbs.
+
+## Public API
+
+The repo exports its main logic from [src/index.ts](./src/index.ts).
+
+Notable exports:
+
+- request schemas
+- `extractStoryboard`
+- `ocrStoryboard`
+- `inferStoryboardTransitions`
+- `classifyStoryboardTransition`
+- `understandStoryboard`
+- harness wrappers
+
+This means you can use the repo:
+
+- as local scripts
+- as an installed skill pack
+- as a TypeScript dependency
+
+## Example Workflow
+
+If you want the smallest realistic end-to-end local example:
 
 ```bash
-cat <<'JSON' | node --import tsx scripts/harness/install-skill-pack.ts
+npm install
+npm run build
+
+cat <<'JSON' | node --import tsx scripts/harness/storyboard-extract.ts
 {
-  "targetDir": ".video-evaluator"
+  "videoPath": "/tmp/demo.mp4",
+  "frameCount": 8,
+  "samplingMode": "hybrid"
+}
+JSON
+
+cat <<'JSON' | node --import tsx scripts/harness/storyboard-ocr.ts
+{
+  "storyboardDir": "/tmp/video-evaluator-storyboard"
+}
+JSON
+
+cat <<'JSON' | node --import tsx scripts/harness/storyboard-transitions.ts
+{
+  "storyboardDir": "/tmp/video-evaluator-storyboard"
+}
+JSON
+
+cat <<'JSON' | node --import tsx scripts/harness/storyboard-understand.ts
+{
+  "storyboardDir": "/tmp/video-evaluator-storyboard"
 }
 JSON
 ```
 
-`install-skill-pack` expects an existing local build. It copies
-`dist/`, `skills/`, `agent/run-tool.mjs`, `eng.traineddata`, and the
-package metadata into the target folder, then installs runtime
-dependencies there by default.
+Then inspect:
 
-## Agent Surface
+- `storyboard.manifest.json`
+- `storyboard.ocr.json`
+- `storyboard.transitions.json`
+- `storyboard.summary.json`
 
-Materialized-pack consumers should prefer:
+## Known Weak Spots
+
+These are not hidden:
+
+- OCR quality can collapse on noisy public videos
+- public-video intros and subtitles can dominate the evidence
+- app/view/capability extraction is still too weak across diverse real videos
+- benchmark success currently means "pipeline ran", not "video was deeply understood"
+
+If you are deciding whether to depend on this repo, this is the section
+to take seriously.
+
+## Roadmap
+
+High-value next steps:
+
+- OCR quality gating before semantic inference
+- broader app/view/capability extraction for generic software
+- stronger preference for stable UI-anchor frames during understanding
+- better subtitle / narration filtering
+- richer local action-sequence reconstruction
+- denser benchmark coverage with stronger high-fit product videos
+
+Longer-term direction:
+
+- richer multimodal timeline understanding
+- better repo-specific adapters on top of the shared artifact contract
+- more reliable comparison and regression-review workflows across repos
+
+## Development Notes
+
+Run the core checks:
 
 ```bash
-cat <<'JSON' | node ./.video-evaluator/agent/run-tool.mjs package-review-prompt
-{
-  "outputDir": "./output/storyboard",
-  "focus": ["what the app appears to do", "flow progression"]
-}
-JSON
+npm run typecheck
+npm test
+npm run build
 ```
 
-If you install from npm instead of copying the local pack:
+This repo has tests for:
 
-```bash
-cat <<'JSON' | node ./node_modules/@45ck/video-evaluator/agent/run-tool.mjs review-bundle
-{
-  "outputDir": "./output"
-}
-JSON
-```
+- hybrid frame planning
+- same-screen probe scoring
+- transition classification
+- summary extraction
+- narration-dominance heuristics
 
-## Direction
+## Bottom Line
 
-Short term:
+`video-evaluator` is already useful as an evidence-extraction and
+review-packaging layer.
 
-- stabilize a common artifact contract
-- keep video review prompts and summaries consistent across repos
-- give Codex and Claude Code a shared skill surface
-- keep capability claims honest while the sequence layer is still
-  heuristic
+It is not yet a strong general video-understanding system.
 
-Later:
-
-- denser sampling around scene changes
-- stronger same-screen, dialog, and scroll inference from OCR/layout anchors
-- richer timeline/event understanding
-- repo-specific adapters that plug into the shared bundle contract
+That distinction is the main thing this README is trying to make clear.
