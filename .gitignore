@@ -1,4 +1,6 @@
 dist
 node_modules
 .video-evaluator
+.cache
+eng.traineddata
 .DS_Store
