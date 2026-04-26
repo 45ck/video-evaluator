@@ -2,7 +2,7 @@
 
 [![Node.js >=20.6](https://img.shields.io/badge/node-%3E%3D20.6-1f6feb?style=flat-square)](./package.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-2da44e?style=flat-square)](./LICENSE)
-[![Tests](https://img.shields.io/badge/tests-26%20passing-2da44e?style=flat-square)](./tests)
+[![CI](https://github.com/45ck/video-evaluator/actions/workflows/ci.yml/badge.svg)](https://github.com/45ck/video-evaluator/actions/workflows/ci.yml)
 [![Status: Experimental](https://img.shields.io/badge/status-experimental-f59e0b?style=flat-square)](./README.md#current-capability-boundary)
 
 `video-evaluator` is a standalone video review and understanding pack for
