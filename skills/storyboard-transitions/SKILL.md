@@ -12,6 +12,8 @@ This skill owns:
 
 - image-level diff between adjacent storyboard frames
 - OCR text additions and removals
+- coarse transition kinds such as `screen-change` or `state-change`
+- overlap/shared-line signals for same-screen heuristics
 - heuristic transition labels with confidence
 - `storyboard.transitions.json`
 

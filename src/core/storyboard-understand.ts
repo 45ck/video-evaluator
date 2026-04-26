@@ -5,7 +5,7 @@ import type { StoryboardUnderstandRequest } from "./schemas.js";
 interface OcrFrame {
   index: number;
   timestampSeconds: number;
-  lines: Array<{ text: string; confidence: number }>;
+  lines: Array<{ text: string; confidence: number; region?: "top" | "middle" | "bottom" }>;
 }
 
 interface OcrManifest {
@@ -21,6 +21,7 @@ interface TransitionsManifest {
     fromFrameIndex: number;
     toFrameIndex: number;
     confidence: number;
+    transitionKind?: "screen-change" | "state-change" | "scroll-change" | "dialog-change" | "uncertain";
   }>;
 }
 
@@ -133,7 +134,7 @@ function buildLikelyFlow(transitions: TransitionsManifest | null): string[] {
     .filter((transition) => transition.confidence >= 0.6)
     .map(
       (transition) =>
-        `frame ${transition.fromFrameIndex} -> ${transition.toFrameIndex}: ${transition.inferredTransition}`,
+        `frame ${transition.fromFrameIndex} -> ${transition.toFrameIndex}: ${transition.transitionKind ?? "transition"} - ${transition.inferredTransition}`,
     );
 }
 
@@ -153,6 +154,7 @@ export async function understandStoryboard(input: StoryboardUnderstandRequest) {
     likelyCapabilities: buildClaims(manifest.frames),
     openQuestions: [
       "What exact user actions happened between these storyboard frames?",
+      "Where does the video show local state changes versus full screen changes?",
       "Are all extracted role labels accurate or partially OCR-distorted?",
       "Which features appear in motion but not in the sampled frames?",
     ],

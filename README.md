@@ -12,7 +12,7 @@ domain-specific generation or QA pipelines. It owns the generic pieces:
 - storyboard frame extraction
 - OCR over extracted storyboard frames
 - heuristic storyboard understanding from OCR evidence
-- frame-to-frame transition inference from image diffs and OCR deltas
+- frame-to-frame transition inference from image diffs and OCR/layout deltas
 - report/status normalization
 - review prompt packaging
 - bundle-to-bundle comparison
@@ -27,6 +27,8 @@ Current boundary:
 - good at evidence extraction for UI-heavy product videos
 - good at turning artifacts into grounded review prompts
 - decent at first-pass OCR-backed product understanding
+- now preserves per-line OCR boxes/regions when the OCR engine exposes them
+- now emits coarse transition kinds such as `screen-change` alongside flow labels
 - still weak at full-sequence action reconstruction
 - still heuristic, not deep multimodal video understanding
 
@@ -88,6 +90,14 @@ cat <<'JSON' | node --import tsx scripts/harness/storyboard-ocr.ts
 JSON
 ```
 
+The OCR artifact now attempts to preserve:
+
+- per-line confidence
+- per-line bounding boxes
+- coarse `top` / `middle` / `bottom` regions
+
+when the OCR engine exposes block/layout data.
+
 Generate an evidence-backed storyboard summary:
 
 ```bash
@@ -107,6 +117,13 @@ cat <<'JSON' | node --import tsx scripts/harness/storyboard-transitions.ts
 }
 JSON
 ```
+
+The transitions artifact now includes:
+
+- `transitionKind`
+- `overlapRatio`
+- `sharedLineCount`
+- OCR-derived evidence strings
 
 Install the skill pack into another repo:
 
@@ -159,6 +176,6 @@ Short term:
 Later:
 
 - denser sampling around scene changes
-- layout-aware OCR and region-level diffs
+- stronger same-screen, dialog, and scroll inference from OCR/layout anchors
 - richer timeline/event understanding
 - repo-specific adapters that plug into the shared bundle contract

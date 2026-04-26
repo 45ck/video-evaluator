@@ -12,6 +12,7 @@ This skill owns:
 
 - OCR over extracted storyboard frames
 - per-frame text with confidence filtering
+- per-line boxes and coarse regions when block/layout OCR is available
 - `storyboard.ocr.json`
 - an aggregated unique-text summary for later review prompts
 
