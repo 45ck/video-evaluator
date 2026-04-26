@@ -20,6 +20,9 @@ export interface StoryboardManifest {
   frameCount: number;
   durationSeconds: number;
   format: "jpg" | "png";
+  samplingMode: "uniform" | "hybrid";
+  changeThreshold?: number;
+  detectedChangeCount?: number;
   frames: StoryboardFrame[];
 }
 
@@ -45,10 +48,89 @@ function defaultOutputDir(videoPath: string): string {
   return join(root, "video-evaluator-storyboard");
 }
 
-function buildTimestamps(durationSeconds: number, frameCount: number): number[] {
+export function buildUniformTimestamps(durationSeconds: number, frameCount: number): number[] {
   return Array.from({ length: frameCount }, (_, index) =>
     Number(((durationSeconds * (index + 1)) / (frameCount + 1)).toFixed(3)),
   );
+}
+
+function pickEvenlySpacedValues(values: number[], count: number): number[] {
+  if (count <= 0 || values.length === 0) return [];
+  if (count >= values.length) return [...values];
+  return Array.from({ length: count }, (_, index) => {
+    const position = Math.round((index * (values.length - 1)) / Math.max(1, count - 1));
+    return values[position];
+  });
+}
+
+function dedupeSortedTimestamps(values: number[]): number[] {
+  return values.filter((value, index) => index === 0 || Math.abs(value - values[index - 1]) > 0.001);
+}
+
+function canAddTimestamp(value: number, chosen: number[], minSpacingSeconds: number): boolean {
+  return chosen.every((existing) => Math.abs(existing - value) >= minSpacingSeconds);
+}
+
+export function buildHybridTimestamps(
+  durationSeconds: number,
+  frameCount: number,
+  candidateTimestamps: number[],
+): number[] {
+  const uniform = buildUniformTimestamps(durationSeconds, frameCount);
+  const minSpacingSeconds = Math.max(durationSeconds / Math.max(frameCount * 6, 1), 0.6);
+  const normalizedCandidates = dedupeSortedTimestamps(
+    candidateTimestamps
+      .filter((value) => Number.isFinite(value) && value > 0 && value < durationSeconds)
+      .sort((left, right) => left - right),
+  );
+
+  if (normalizedCandidates.length === 0) {
+    return uniform;
+  }
+
+  const candidateBudget = Math.min(
+    normalizedCandidates.length,
+    Math.max(1, Math.ceil(frameCount / 2)),
+  );
+  const prioritizedCandidates = pickEvenlySpacedValues(normalizedCandidates, candidateBudget);
+  const fallbackGrid = buildUniformTimestamps(durationSeconds, Math.max(frameCount * 3, frameCount));
+  const chosen: number[] = [];
+  const addTimestamps = (values: number[]) => {
+    for (const value of values) {
+      if (chosen.length >= frameCount) return;
+      if (canAddTimestamp(value, chosen, minSpacingSeconds)) {
+        chosen.push(value);
+      }
+    }
+  };
+
+  addTimestamps(prioritizedCandidates);
+  addTimestamps(uniform);
+  addTimestamps(fallbackGrid);
+
+  return chosen.sort((left, right) => left - right).slice(0, frameCount);
+}
+
+async function detectChangeTimestamps(videoPath: string, threshold: number): Promise<number[]> {
+  try {
+    const { stderr } = await execFileAsync("ffmpeg", [
+      "-hide_banner",
+      "-i",
+      videoPath,
+      "-filter:v",
+      `select='gt(scene,${threshold})',showinfo`,
+      "-an",
+      "-f",
+      "null",
+      "-",
+    ]);
+    return [...stderr.matchAll(/pts_time:([0-9.]+)/g)].map((match) => Number(match[1]));
+  } catch (error) {
+    const stderr = error && typeof error === "object" && "stderr" in error ? String(error.stderr ?? "") : "";
+    const matches = [...stderr.matchAll(/pts_time:([0-9.]+)/g)].map((match) => Number(match[1]));
+    if (matches.length > 0) return matches;
+    return [];
+  }
 }
 
 export async function extractStoryboard(input: StoryboardExtractRequest) {
@@ -57,7 +139,14 @@ export async function extractStoryboard(input: StoryboardExtractRequest) {
   await mkdir(outputDir, { recursive: true });
 
   const durationSeconds = await probeDuration(videoPath);
-  const timestamps = buildTimestamps(durationSeconds, input.frameCount);
+  const detectedChangeTimestamps =
+    input.samplingMode === "hybrid"
+      ? await detectChangeTimestamps(videoPath, input.changeThreshold)
+      : [];
+  const timestamps =
+    input.samplingMode === "hybrid"
+      ? buildHybridTimestamps(durationSeconds, input.frameCount, detectedChangeTimestamps)
+      : buildUniformTimestamps(durationSeconds, input.frameCount);
   const frames: StoryboardFrame[] = [];
 
   for (const [index, timestampSeconds] of timestamps.entries()) {
@@ -87,6 +176,9 @@ export async function extractStoryboard(input: StoryboardExtractRequest) {
     frameCount: input.frameCount,
     durationSeconds,
     format: input.format,
+    samplingMode: input.samplingMode,
+    changeThreshold: input.samplingMode === "hybrid" ? input.changeThreshold : undefined,
+    detectedChangeCount: input.samplingMode === "hybrid" ? detectedChangeTimestamps.length : undefined,
     frames,
   };
 

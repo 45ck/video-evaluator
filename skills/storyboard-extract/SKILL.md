@@ -1,6 +1,6 @@
 ---
 name: storyboard-extract
-description: Extract evenly spaced storyboard frames from a local video and write a manifest that an agent can inspect as evidence.
+description: Extract storyboard frames from a local video and write a manifest that an agent can inspect as evidence, with optional hybrid sampling around likely changes.
 ---
 
 # Storyboard Extract
@@ -11,7 +11,8 @@ than only sibling JSON reports.
 This skill owns:
 
 - probing video duration with `ffprobe`
-- extracting evenly spaced frames with `ffmpeg`
+- extracting frames with `ffmpeg`
+- optional hybrid sampling that biases some frames toward likely scene changes
 - writing `storyboard.manifest.json`
 - giving downstream reviewers stable image artifacts to inspect
 

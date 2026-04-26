@@ -23,6 +23,8 @@ export const StoryboardExtractRequestSchema = z.object({
   outputDir: z.string().min(1).optional(),
   frameCount: z.number().int().min(1).max(24).default(6),
   format: z.enum(["jpg", "png"]).default("jpg"),
+  samplingMode: z.enum(["uniform", "hybrid"]).default("uniform"),
+  changeThreshold: z.number().min(0.01).max(1).default(0.08),
 });
 
 export const StoryboardOcrRequestSchema = z.object({

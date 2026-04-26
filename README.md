@@ -10,6 +10,7 @@ domain-specific generation or QA pipelines. It owns the generic pieces:
 - artifact-bundle intake
 - latest-run discovery
 - storyboard frame extraction
+- hybrid storyboard sampling that can bias frames toward likely scene/change points
 - OCR over extracted storyboard frames
 - heuristic storyboard understanding from OCR evidence
 - frame-to-frame transition inference from image diffs and OCR/layout deltas
@@ -77,10 +78,16 @@ Extract storyboard frames from a raw video:
 cat <<'JSON' | node --import tsx scripts/harness/storyboard-extract.ts
 {
   "videoPath": "/path/to/video.mp4",
-  "frameCount": 6
+  "frameCount": 6,
+  "samplingMode": "hybrid"
 }
 JSON
 ```
+
+`samplingMode: "hybrid"` keeps the uniform backbone but uses ffmpeg
+scene-change detection to bias some frames toward likely transitions.
+This is still heuristic, but it gives the OCR/transition layers denser
+evidence around UI changes than pure even spacing.
 
 OCR extracted storyboard frames:
 
