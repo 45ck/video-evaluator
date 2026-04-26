@@ -17,6 +17,13 @@ export const ReviewBundleRequestSchema = VideoIntakeRequestSchema.extend({
   includePromptHints: z.boolean().default(true),
 });
 
+export const StoryboardExtractRequestSchema = z.object({
+  videoPath: z.string().min(1),
+  outputDir: z.string().min(1).optional(),
+  frameCount: z.number().int().min(1).max(24).default(6),
+  format: z.enum(["jpg", "png"]).default("jpg"),
+});
+
 export const CompareBundlesRequestSchema = z.object({
   left: VideoIntakeRequestSchema,
   right: VideoIntakeRequestSchema,
@@ -31,5 +38,6 @@ export type SkillCatalogRequest = z.infer<typeof SkillCatalogRequestSchema>;
 export type InstallSkillPackRequest = z.infer<typeof InstallSkillPackRequestSchema>;
 export type VideoIntakeRequest = z.infer<typeof VideoIntakeRequestSchema>;
 export type ReviewBundleRequest = z.infer<typeof ReviewBundleRequestSchema>;
+export type StoryboardExtractRequest = z.infer<typeof StoryboardExtractRequestSchema>;
 export type CompareBundlesRequest = z.infer<typeof CompareBundlesRequestSchema>;
 export type PackageReviewPromptRequest = z.infer<typeof PackageReviewPromptRequestSchema>;

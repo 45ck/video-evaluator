@@ -22,6 +22,7 @@
     "skill-catalog": "node --import tsx scripts/harness/skill-catalog.ts",
     "install-skill-pack": "node --import tsx scripts/harness/install-skill-pack.ts",
     "video-intake": "node --import tsx scripts/harness/video-intake.ts",
+    "storyboard-extract": "node --import tsx scripts/harness/storyboard-extract.ts",
     "review-bundle": "node --import tsx scripts/harness/review-bundle.ts",
     "compare-bundles": "node --import tsx scripts/harness/compare-bundles.ts",
     "package-review-prompt": "node --import tsx scripts/harness/package-review-prompt.ts"
@@ -48,6 +49,7 @@
   "keywords": [
     "video",
     "evaluation",
+    "storyboard",
     "review",
     "artifact-bundle",
     "codex",

@@ -9,6 +9,7 @@ domain-specific pipelines. It owns the generic pieces:
 
 - artifact-bundle intake
 - latest-run discovery
+- storyboard and keyframe extraction
 - report/status normalization
 - review prompt packaging
 - bundle-to-bundle comparison
@@ -24,6 +25,7 @@ generic scorer can replace domain-specific checks.
 - `install-skill-pack`
 - `video-intake`
 - `review-bundle`
+- `storyboard-extract`
 - `compare-bundles`
 - `package-review-prompt`
 
@@ -40,6 +42,17 @@ Review a bundle:
 cat <<'JSON' | node --import tsx scripts/harness/review-bundle.ts
 {
   "outputDir": "../demo-machine/output/todo-app/20260426-000000-000"
+}
+JSON
+```
+
+Extract storyboard frames from a raw video:
+
+```bash
+cat <<'JSON' | node --import tsx scripts/harness/storyboard-extract.ts
+{
+  "videoPath": "/path/to/video.mp4",
+  "frameCount": 6
 }
 JSON
 ```
@@ -76,6 +89,6 @@ Short term:
 
 Later:
 
-- optional frame-diff helpers
+- frame-diff helpers
 - richer timeline/event understanding
 - repo-specific adapters that plug into the shared bundle contract

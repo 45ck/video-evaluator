@@ -5,6 +5,7 @@ import {
   PackageReviewPromptRequestSchema,
   ReviewBundleRequestSchema,
   SkillCatalogRequestSchema,
+  StoryboardExtractRequestSchema,
   VideoIntakeRequestSchema,
   compareBundles,
   installSkillPack,
@@ -12,6 +13,7 @@ import {
   packageReviewPrompt,
   reviewBundle,
   runHarnessTool,
+  runStoryboardExtract,
   runVideoIntake,
 } from "../dist/index.js";
 
@@ -37,6 +39,11 @@ const registry = {
     tool: "video-evaluator/review-bundle",
     inputSchema: ReviewBundleRequestSchema,
     handler: async ({ input }) => reviewBundle(input),
+  },
+  "storyboard-extract": {
+    tool: "video-evaluator/storyboard-extract",
+    inputSchema: StoryboardExtractRequestSchema,
+    handler: async ({ input }) => runStoryboardExtract(input),
   },
   "compare-bundles": {
     tool: "video-evaluator/compare-bundles",
