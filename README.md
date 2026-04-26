@@ -126,6 +126,8 @@ tests/
 ## Project Health
 
 - [Contributing guide](./CONTRIBUTING.md)
+- [Code of conduct](./CODE_OF_CONDUCT.md)
+- [Code owners](./CODEOWNERS)
 - [Security policy](./SECURITY.md)
 - [Changelog](./CHANGELOG.md)
 - [Latest release](https://github.com/45ck/video-evaluator/releases/tag/v0.1.0)
