@@ -1,0 +1,260 @@
+import { access, constants, copyFile, mkdir, readFile, readdir, stat } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import type { VideoIntakeRequest } from "./schemas.js";
+
+const execFileAsync = promisify(execFile);
+
+const VIDEO_CANDIDATES = ["output.mp4", "video.mp4", "video.webm"];
+const REPORT_CANDIDATES = [
+  "quality.json",
+  "verification.json",
+  "validate.json",
+  "score.json",
+  "publish.json",
+  "metadata.json",
+  "environment.json",
+  "events.json",
+  "subtitles.vtt",
+  "trace.zip",
+] as const;
+
+export interface BundleArtifactMap {
+  rootDir: string | null;
+  videoPath: string | null;
+  artifacts: Record<string, string>;
+  reportStatuses: Array<{ name: string; status: string; note?: string }>;
+  overallStatus: "pass" | "warn" | "fail" | "unknown";
+  recommendedFocus: string[];
+  videoProbe?: {
+    durationSeconds?: number;
+    width?: number;
+    height?: number;
+    sizeBytes?: number;
+    codec?: string;
+  };
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await access(path, constants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function maybeReadJson(path: string): Promise<unknown | null> {
+  try {
+    const raw = await readFile(path, "utf8");
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function deriveReportStatus(name: string, data: unknown): { status: string; note?: string } {
+  if (!data || typeof data !== "object") {
+    return { status: "present" };
+  }
+  const record = data as Record<string, unknown>;
+  if (typeof record.status === "string") {
+    return { status: record.status };
+  }
+  if (typeof record.passed === "boolean") {
+    return { status: record.passed ? "pass" : "fail" };
+  }
+  if (typeof record.hasFailures === "boolean") {
+    return { status: record.hasFailures ? "fail" : "pass" };
+  }
+  if (name === "publish.json" && Array.isArray(record.checklist)) {
+    return { status: "present", note: "publish metadata found" };
+  }
+  return { status: "present" };
+}
+
+function collapseOverallStatus(
+  statuses: Array<{ name: string; status: string }>,
+): "pass" | "warn" | "fail" | "unknown" {
+  if (statuses.length === 0) return "unknown";
+  if (statuses.some((entry) => entry.status === "fail" || entry.status === "error")) return "fail";
+  if (statuses.some((entry) => entry.status === "warn")) return "warn";
+  if (statuses.some((entry) => entry.status === "pass")) return "pass";
+  return "unknown";
+}
+
+function deriveRecommendedFocus(
+  statuses: Array<{ name: string; status: string }>,
+  artifacts: Record<string, string>,
+): string[] {
+  const focus = new Set<string>();
+  for (const entry of statuses) {
+    if (entry.status === "fail" || entry.status === "warn") {
+      focus.add(entry.name);
+    }
+  }
+  if (artifacts["events.json"]) focus.add("timeline accuracy");
+  if (artifacts["subtitles.vtt"]) focus.add("caption readability");
+  if (artifacts["trace.zip"]) focus.add("failure trace");
+  if (focus.size === 0 && (artifacts["output.mp4"] || artifacts["video.mp4"])) {
+    focus.add("overall pacing");
+    focus.add("visual clarity");
+  }
+  return [...focus];
+}
+
+async function resolveFromLatestPointer(root: string): Promise<string> {
+  const latestJson = join(root, "latest.json");
+  const latestTxt = join(root, "LATEST.txt");
+  const latest = await maybeReadJson(latestJson);
+  if (latest && typeof latest === "object" && typeof (latest as { outputDir?: unknown }).outputDir === "string") {
+    return resolve((latest as { outputDir: string }).outputDir);
+  }
+  if (await pathExists(latestTxt)) {
+    const raw = await readFile(latestTxt, "utf8");
+    const candidate = raw.trim();
+    if (candidate) return resolve(root, candidate);
+  }
+  return resolve(root);
+}
+
+async function findVideoCandidate(rootDir: string): Promise<string | null> {
+  for (const candidate of VIDEO_CANDIDATES) {
+    const path = join(rootDir, candidate);
+    if (await pathExists(path)) return path;
+  }
+  try {
+    const entries = await readdir(rootDir, { withFileTypes: true });
+    const mp4 = entries.find((entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".mp4"));
+    return mp4 ? join(rootDir, mp4.name) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function probeVideo(path: string): Promise<BundleArtifactMap["videoProbe"] | undefined> {
+  try {
+    const fileStat = await stat(path);
+    const { stdout } = await execFileAsync("ffprobe", [
+      "-v",
+      "error",
+      "-print_format",
+      "json",
+      "-show_streams",
+      "-show_format",
+      path,
+    ]);
+    const parsed = JSON.parse(stdout) as {
+      streams?: Array<Record<string, unknown>>;
+      format?: Record<string, unknown>;
+    };
+    const videoStream =
+      parsed.streams?.find((stream) => stream.codec_type === "video") ??
+      parsed.streams?.[0];
+    const durationRaw = parsed.format?.duration;
+    return {
+      durationSeconds:
+        typeof durationRaw === "string" ? Number(durationRaw) : undefined,
+      width: typeof videoStream?.width === "number" ? videoStream.width : undefined,
+      height: typeof videoStream?.height === "number" ? videoStream.height : undefined,
+      codec: typeof videoStream?.codec_name === "string" ? videoStream.codec_name : undefined,
+      sizeBytes: fileStat.size,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+export async function intakeBundle(request: VideoIntakeRequest): Promise<BundleArtifactMap> {
+  let rootDir: string | null = null;
+  if (request.outputDir) {
+    rootDir = resolve(request.outputDir);
+  } else if (request.latestPointerRoot) {
+    rootDir = await resolveFromLatestPointer(resolve(request.latestPointerRoot));
+  }
+
+  let videoPath = request.videoPath ? resolve(request.videoPath) : null;
+  if (!videoPath && rootDir) {
+    videoPath = await findVideoCandidate(rootDir);
+  }
+  if (!rootDir && videoPath) {
+    rootDir = dirname(videoPath);
+  }
+
+  const artifacts: Record<string, string> = {};
+  if (rootDir) {
+    for (const name of REPORT_CANDIDATES) {
+      const path = join(rootDir, name);
+      if (await pathExists(path)) artifacts[name] = path;
+    }
+  }
+  if (videoPath) {
+    artifacts["video"] = videoPath;
+  }
+
+  const reportStatuses: Array<{ name: string; status: string; note?: string }> = [];
+  for (const [name, path] of Object.entries(artifacts)) {
+    if (!name.endsWith(".json")) continue;
+    const json = await maybeReadJson(path);
+    const derived = deriveReportStatus(name, json);
+    reportStatuses.push({ name, ...derived });
+  }
+
+  const overallStatus = collapseOverallStatus(reportStatuses);
+  const recommendedFocus = deriveRecommendedFocus(reportStatuses, artifacts);
+  const videoProbe = videoPath ? await probeVideo(videoPath) : undefined;
+
+  return {
+    rootDir,
+    videoPath,
+    artifacts,
+    reportStatuses,
+    overallStatus,
+    recommendedFocus,
+    ...(videoProbe ? { videoProbe } : {}),
+  };
+}
+
+export async function copySkillPack(targetDir: string, includeAgentRunner: boolean): Promise<string[]> {
+  const repoRoot = resolve(dirname(new URL(import.meta.url).pathname), "../../");
+  const copied: string[] = [];
+  const skillRoot = join(repoRoot, "skills");
+  const targetSkillsRoot = join(resolve(targetDir), "skills");
+  await mkdir(targetSkillsRoot, { recursive: true });
+
+  const skillEntries = await readdir(skillRoot, { withFileTypes: true });
+  for (const entry of skillEntries) {
+    if (!entry.isDirectory()) continue;
+    const sourceDir = join(skillRoot, entry.name);
+    const targetSkillDir = join(targetSkillsRoot, entry.name);
+    await mkdir(join(targetSkillDir, "examples"), { recursive: true });
+    const skillFile = join(sourceDir, "SKILL.md");
+    if (await pathExists(skillFile)) {
+      await copyFile(skillFile, join(targetSkillDir, "SKILL.md"));
+      copied.push(join(targetSkillDir, "SKILL.md"));
+    }
+    const examplesDir = join(sourceDir, "examples");
+    if (await pathExists(examplesDir)) {
+      const examples = await readdir(examplesDir, { withFileTypes: true });
+      for (const example of examples) {
+        if (!example.isFile()) continue;
+        const sourcePath = join(examplesDir, example.name);
+        const targetPath = join(targetSkillDir, "examples", example.name);
+        await copyFile(sourcePath, targetPath);
+        copied.push(targetPath);
+      }
+    }
+  }
+
+  if (includeAgentRunner) {
+    const agentTarget = join(resolve(targetDir), "agent");
+    await mkdir(agentTarget, { recursive: true });
+    const sourceRunner = join(repoRoot, "agent", "run-tool.mjs");
+    const targetRunner = join(agentTarget, "run-tool.mjs");
+    await copyFile(sourceRunner, targetRunner);
+    copied.push(targetRunner);
+  }
+
+  return copied;
+}
