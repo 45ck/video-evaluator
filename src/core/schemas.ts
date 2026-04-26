@@ -25,6 +25,21 @@ export const StoryboardExtractRequestSchema = z.object({
   format: z.enum(["jpg", "png"]).default("jpg"),
 });
 
+export const StoryboardOcrRequestSchema = z.object({
+  storyboardDir: z.string().min(1).optional(),
+  manifestPath: z.string().min(1).optional(),
+  minConfidence: z.number().min(0).max(100).default(45),
+}).refine((input) => Boolean(input.storyboardDir || input.manifestPath), {
+  message: "storyboardDir or manifestPath is required",
+});
+
+export const StoryboardUnderstandRequestSchema = z.object({
+  storyboardDir: z.string().min(1).optional(),
+  ocrPath: z.string().min(1).optional(),
+}).refine((input) => Boolean(input.storyboardDir || input.ocrPath), {
+  message: "storyboardDir or ocrPath is required",
+});
+
 export const CompareBundlesRequestSchema = z.object({
   left: VideoIntakeRequestSchema,
   right: VideoIntakeRequestSchema,
@@ -40,5 +55,7 @@ export type InstallSkillPackRequest = z.infer<typeof InstallSkillPackRequestSche
 export type VideoIntakeRequest = z.infer<typeof VideoIntakeRequestSchema>;
 export type ReviewBundleRequest = z.infer<typeof ReviewBundleRequestSchema>;
 export type StoryboardExtractRequest = z.infer<typeof StoryboardExtractRequestSchema>;
+export type StoryboardOcrRequest = z.infer<typeof StoryboardOcrRequestSchema>;
+export type StoryboardUnderstandRequest = z.infer<typeof StoryboardUnderstandRequestSchema>;
 export type CompareBundlesRequest = z.infer<typeof CompareBundlesRequestSchema>;
 export type PackageReviewPromptRequest = z.infer<typeof PackageReviewPromptRequestSchema>;

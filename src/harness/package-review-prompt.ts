@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { intakeBundle } from "../core/bundle.js";
 import {
   PackageReviewPromptRequestSchema,
@@ -30,6 +31,34 @@ function buildPrompt(input: PackageReviewPromptRequest, bundle: Awaited<ReturnTy
     lines.push(`  - Codec: ${bundle.videoProbe.codec ?? "unknown"}`);
   }
 
+  const ocrPreview = (bundle as typeof bundle & { ocrPreview?: string[] }).ocrPreview;
+  if (ocrPreview && ocrPreview.length > 0) {
+    lines.push("- Extracted text preview:");
+    for (const line of ocrPreview) {
+      lines.push(`  - ${line}`);
+    }
+  }
+
+  const summaryPreview = (bundle as typeof bundle & {
+    summaryPreview?: {
+      appNames: string[];
+      views: string[];
+      claims: string[];
+    };
+  }).summaryPreview;
+  if (summaryPreview && (summaryPreview.appNames.length || summaryPreview.views.length || summaryPreview.claims.length)) {
+    lines.push("- Inferred summary:");
+    for (const appName of summaryPreview.appNames) {
+      lines.push(`  - app: ${appName}`);
+    }
+    for (const view of summaryPreview.views) {
+      lines.push(`  - view: ${view}`);
+    }
+    for (const claim of summaryPreview.claims) {
+      lines.push(`  - capability: ${claim}`);
+    }
+  }
+
   lines.push("- Review focus:");
   for (const focus of [...bundle.recommendedFocus, ...input.focus]) {
     lines.push(`  - ${focus}`);
@@ -51,10 +80,57 @@ function buildPrompt(input: PackageReviewPromptRequest, bundle: Awaited<ReturnTy
 
 export async function packageReviewPrompt(input: PackageReviewPromptRequest) {
   const bundle = await intakeBundle(input);
+  const ocrPreview = await loadOcrPreview(bundle.artifacts["storyboard.ocr.json"]);
+  const summaryPreview = await loadSummaryPreview(bundle.artifacts["storyboard.summary.json"]);
   return {
-    bundle,
-    prompt: buildPrompt(input, bundle),
+    bundle: {
+      ...bundle,
+      ...(ocrPreview.length > 0 ? { ocrPreview } : {}),
+      ...(summaryPreview ? { summaryPreview } : {}),
+    },
+    prompt: buildPrompt(input, {
+      ...bundle,
+      ...(ocrPreview.length > 0 ? { ocrPreview } : {}),
+      ...(summaryPreview ? { summaryPreview } : {}),
+    }),
   };
+}
+
+async function loadOcrPreview(ocrPath: string | undefined): Promise<string[]> {
+  if (!ocrPath) return [];
+  try {
+    const raw = await readFile(ocrPath, "utf8");
+    const parsed = JSON.parse(raw) as {
+      summary?: { uniqueLines?: string[] };
+    };
+    return (parsed.summary?.uniqueLines ?? []).filter(Boolean).slice(0, 10);
+  } catch {
+    return [];
+  }
+}
+
+async function loadSummaryPreview(
+  summaryPath: string | undefined,
+): Promise<{ appNames: string[]; views: string[]; claims: string[] } | null> {
+  if (!summaryPath) return null;
+  try {
+    const raw = await readFile(summaryPath, "utf8");
+    const parsed = JSON.parse(raw) as {
+      appNames?: string[];
+      views?: string[];
+      likelyCapabilities?: Array<{ claim?: string }>;
+    };
+    return {
+      appNames: (parsed.appNames ?? []).slice(0, 3),
+      views: (parsed.views ?? []).slice(0, 5),
+      claims: (parsed.likelyCapabilities ?? [])
+        .map((entry) => entry.claim)
+        .filter((value): value is string => typeof value === "string")
+        .slice(0, 5),
+    };
+  } catch {
+    return null;
+  }
 }
 
 export { PackageReviewPromptRequestSchema };

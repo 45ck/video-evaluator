@@ -14,6 +14,8 @@ const REPORT_CANDIDATES = [
   "score.json",
   "publish.json",
   "storyboard.manifest.json",
+  "storyboard.ocr.json",
+  "storyboard.summary.json",
   "metadata.json",
   "environment.json",
   "events.json",
@@ -99,6 +101,8 @@ function deriveRecommendedFocus(
   if (artifacts["subtitles.vtt"]) focus.add("caption readability");
   if (artifacts["trace.zip"]) focus.add("failure trace");
   if (artifacts["storyboard.manifest.json"]) focus.add("storyboard evidence");
+  if (artifacts["storyboard.ocr.json"]) focus.add("extracted UI text");
+  if (artifacts["storyboard.summary.json"]) focus.add("inferred product summary");
   if (focus.size === 0 && (artifacts["output.mp4"] || artifacts["video.mp4"])) {
     focus.add("overall pacing");
     focus.add("visual clarity");

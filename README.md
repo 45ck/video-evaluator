@@ -10,6 +10,8 @@ domain-specific pipelines. It owns the generic pieces:
 - artifact-bundle intake
 - latest-run discovery
 - storyboard and keyframe extraction
+- OCR over extracted storyboard frames
+- heuristic storyboard understanding from OCR evidence
 - report/status normalization
 - review prompt packaging
 - bundle-to-bundle comparison
@@ -26,6 +28,8 @@ generic scorer can replace domain-specific checks.
 - `video-intake`
 - `review-bundle`
 - `storyboard-extract`
+- `storyboard-ocr`
+- `storyboard-understand`
 - `compare-bundles`
 - `package-review-prompt`
 
@@ -53,6 +57,26 @@ cat <<'JSON' | node --import tsx scripts/harness/storyboard-extract.ts
 {
   "videoPath": "/path/to/video.mp4",
   "frameCount": 6
+}
+JSON
+```
+
+OCR extracted storyboard frames:
+
+```bash
+cat <<'JSON' | node --import tsx scripts/harness/storyboard-ocr.ts
+{
+  "storyboardDir": "./output/storyboard"
+}
+JSON
+```
+
+Generate an evidence-backed storyboard summary:
+
+```bash
+cat <<'JSON' | node --import tsx scripts/harness/storyboard-understand.ts
+{
+  "storyboardDir": "./output/storyboard"
 }
 JSON
 ```

@@ -23,11 +23,14 @@
     "install-skill-pack": "node --import tsx scripts/harness/install-skill-pack.ts",
     "video-intake": "node --import tsx scripts/harness/video-intake.ts",
     "storyboard-extract": "node --import tsx scripts/harness/storyboard-extract.ts",
+    "storyboard-ocr": "node --import tsx scripts/harness/storyboard-ocr.ts",
+    "storyboard-understand": "node --import tsx scripts/harness/storyboard-understand.ts",
     "review-bundle": "node --import tsx scripts/harness/review-bundle.ts",
     "compare-bundles": "node --import tsx scripts/harness/compare-bundles.ts",
     "package-review-prompt": "node --import tsx scripts/harness/package-review-prompt.ts"
   },
   "dependencies": {
+    "tesseract.js": "^7.0.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
