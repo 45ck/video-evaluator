@@ -67,6 +67,21 @@ test("parseArgs rejects invalid gate thresholds before benchmark work starts", (
     () => parseArgs(["--min-operational-successes=-1"]),
     /--min-operational-successes must be a non-negative integer/,
   );
+  assert.throws(
+    () => parseArgs(["--min-operational-successes="]),
+    /--min-operational-successes must be a number/,
+  );
+});
+
+test("parseArgs rejects malformed numeric options instead of silently using defaults", () => {
+  assert.throws(
+    () => parseArgs(["--limit=not-a-number"]),
+    /--limit must be a number/,
+  );
+  assert.throws(
+    () => parseArgs(["--frame-count="]),
+    /--frame-count must be a number/,
+  );
 });
 
 test("isNegativeControlFalsePositive catches forbidden semantic output", () => {

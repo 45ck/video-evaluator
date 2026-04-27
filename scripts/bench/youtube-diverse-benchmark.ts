@@ -158,8 +158,16 @@ export interface BenchmarkGateReport {
 }
 
 function parseOptionalNumberFlag(argv: string[], flag: string) {
-  const value = argv.find((arg) => arg.startsWith(`${flag}=`))?.slice(flag.length + 1);
-  return value ? Number(value) : undefined;
+  const rawValue = argv.find((arg) => arg.startsWith(`${flag}=`))?.slice(flag.length + 1);
+  if (rawValue === undefined) return undefined;
+  if (rawValue.trim() === "") {
+    throw new Error(`${flag} must be a number.`);
+  }
+  const value = Number(rawValue);
+  if (!Number.isFinite(value)) {
+    throw new Error(`${flag} must be a number.`);
+  }
+  return value;
 }
 
 function parseOptionalNonnegativeIntegerFlag(argv: string[], flag: string) {
