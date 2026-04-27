@@ -1,0 +1,272 @@
+# Artifact Contracts
+
+This document describes the compatibility contract for storyboard artifacts emitted by
+the current video-evaluator tools. It is a consumer-facing contract, not a complete
+debug dump specification.
+
+## Compatibility Model
+
+Storyboard artifacts are JSON files with a top-level `schemaVersion` integer. Consumers
+must check the artifact file name and `schemaVersion` before relying on fields.
+
+Compatibility expectations:
+
+- Producers may add new optional fields without changing `schemaVersion`.
+- Producers must not remove, rename, or change the type or meaning of stable fields
+  within the same `schemaVersion`.
+- Consumers must ignore unknown fields.
+- Consumers must tolerate missing optional fields.
+- Numeric timestamps and durations are seconds.
+- Paths are serialized as strings and are normally absolute paths from the machine
+  that generated the artifact. Consumers should not assume they are portable across
+  machines.
+- Arrays preserve producer order unless the field description says otherwise.
+- Fields listed as non-contract are current implementation details. They may change
+  without a schema-version bump and should be used only for diagnostics, previews, or
+  best-effort heuristics.
+
+## Shared Storyboard Concepts
+
+Several artifacts repeat frame sampling fields. Their stable values are:
+
+- `samplingMode`: `"uniform"` or `"hybrid"`.
+- `samplingReason`: `"uniform"`, `"change-peak"`, or `"coverage-fill"`.
+- `samplingSignal`: `"scene-change"` or `"same-screen-change"`.
+- OCR/text `region`: `"top"`, `"middle"`, or `"bottom"`.
+
+Consumers should treat scores, confidence values, OCR text, inferred labels, and
+diagnostic notes as model- or heuristic-derived evidence, not as ground truth.
+
+## `storyboard.manifest.json`
+
+Schema version: `1`.
+
+Produced by storyboard extraction. This is the canonical manifest for sampled frame
+images and sampling metadata.
+
+Stable top-level fields:
+
+- `schemaVersion`: `1`.
+- `createdAt`: ISO-8601 timestamp string for artifact creation.
+- `videoPath`: source video path string.
+- `outputDir`: directory containing the storyboard artifact and frame images.
+- `frameCount`: requested number of sampled frames.
+- `durationSeconds`: detected source video duration in seconds.
+- `format`: frame image format, `"jpg"` or `"png"`.
+- `samplingMode`: `"uniform"` or `"hybrid"`.
+- `changeThreshold`: present for hybrid sampling; scene-change threshold used during
+  candidate detection.
+- `detectedChangeCount`: present for hybrid sampling; count of primary detected change
+  candidates before frame selection.
+- `frames`: ordered storyboard frame records.
+
+Stable frame fields:
+
+- `index`: one-based frame index.
+- `timestampSeconds`: timestamp sampled from the source video.
+- `imagePath`: path to the extracted frame image.
+- `samplingReason`: reason this frame was selected.
+- `nearestChangeDistanceSeconds`: present for hybrid sampling when available; distance
+  to the nearest primary detected change candidate.
+- `samplingSignal`: present for change-peak frames when available; candidate source.
+- `samplingScore`: present for change-peak frames when available; candidate score.
+
+Known non-contract fields:
+
+- `candidateDiagnostics`: debug summary of hybrid candidate selection.
+- `candidateDiagnostics.sourceCounts`.
+- `candidateDiagnostics.contextGeneratedCount`.
+- `candidateDiagnostics.topCandidates`.
+- `candidateDiagnostics.topCandidates[*].diagnostics`.
+- `candidateDiagnostics.topCandidates[*].contextGenerated`.
+
+## `storyboard.ocr.json`
+
+Schema version: `2`.
+
+Produced by OCR over storyboard frames. This artifact carries raw OCR lines, filtered
+semantic UI lines, and per-frame OCR quality.
+
+Stable top-level fields:
+
+- `schemaVersion`: `2`.
+- `createdAt`: ISO-8601 timestamp string for artifact creation.
+- `storyboardManifestPath`: path to the source `storyboard.manifest.json`.
+- `storyboardDir`: storyboard directory.
+- `videoPath`: source video path string.
+- `minConfidence`: OCR confidence threshold used when extracting lines.
+- `samplingMode`: copied from the storyboard manifest when available.
+- `changeThreshold`: copied from the storyboard manifest when available.
+- `detectedChangeCount`: copied from the storyboard manifest when available.
+- `frames`: ordered OCR frame records.
+- `summary`: aggregate OCR summary.
+
+Stable frame fields:
+
+- `index`: one-based frame index from the storyboard manifest.
+- `timestampSeconds`: frame timestamp in seconds.
+- `imagePath`: source frame image path.
+- `samplingReason`, `nearestChangeDistanceSeconds`, `samplingSignal`, `samplingScore`:
+  copied from the storyboard frame when available.
+- `imageWidth`: OCR-observed image width when available.
+- `imageHeight`: OCR-observed image height when available.
+- `lines`: OCR line records that met `minConfidence`.
+- `semanticLines`: OCR line records classified as UI evidence.
+- `quality`: per-frame OCR quality summary.
+- `text`: newline-joined text from `lines`.
+
+Stable OCR line fields:
+
+- `text`: normalized OCR text.
+- `confidence`: OCR confidence number.
+- `bbox`: bounding box when available.
+- `bbox.x0`, `bbox.y0`, `bbox.x1`, `bbox.y1`: pixel coordinates.
+- `bbox.width`, `bbox.height`: pixel dimensions.
+- `bbox.centerX`, `bbox.centerY`: pixel center coordinates.
+- `region`: `"top"`, `"middle"`, or `"bottom"` when available.
+- `evidenceRole`: `"ui"`, `"subtitle-like"`, or `"garbage"` when classified.
+- `suppressionReasons`: reason strings for non-UI or low-trust lines when available.
+
+Stable quality fields:
+
+- `status`: `"usable"`, `"weak"`, or `"reject"`.
+- `usableLineCount`: number of semantic UI lines.
+- `usableLineShare`: semantic UI lines divided by all classified lines.
+- `averageConfidence`: average confidence across classified lines.
+- `topAnchorCount`: semantic UI lines in the top region.
+- `bottomSentenceShare`: share of subtitle-like bottom-region lines.
+- `reasons`: quality reason strings.
+
+Stable summary fields:
+
+- `uniqueLines`: unique raw OCR line texts in first-seen order.
+- `uniqueSemanticLines`: unique semantic UI line texts in first-seen order.
+- `concatenatedText`: newline-joined `uniqueLines`.
+- `concatenatedSemanticText`: newline-joined `uniqueSemanticLines`.
+- `quality.usableFrames`: count of frames with quality status `"usable"`.
+- `quality.weakFrames`: count of frames with quality status `"weak"`.
+- `quality.rejectedFrames`: count of frames with quality status `"reject"`.
+
+Known non-contract fields:
+
+- The specific strings in `suppressionReasons`, `quality.reasons`, and OCR text fields.
+- Exact `confidence`, `usableLineShare`, `averageConfidence`, and region-assignment
+  values, which can vary with OCR engine behavior and preprocessing changes.
+
+## `storyboard.transitions.json`
+
+Schema version: `1`.
+
+Produced by transition inference between adjacent OCR frames. This artifact describes
+frame-to-frame changes using visual diff and OCR evidence.
+
+Stable top-level fields:
+
+- `schemaVersion`: `1`.
+- `createdAt`: ISO-8601 timestamp string for artifact creation.
+- `ocrPath`: path to the source `storyboard.ocr.json`.
+- `storyboardDir`: storyboard directory.
+- `videoPath`: source video path string.
+- `threshold`: visual-diff threshold used during transition inference.
+- `transitions`: ordered transition records between adjacent frames.
+
+Stable transition fields:
+
+- `fromFrameIndex`: source frame index.
+- `toFrameIndex`: destination frame index.
+- `fromTimestampSeconds`: source frame timestamp in seconds.
+- `toTimestampSeconds`: destination frame timestamp in seconds.
+- `visualDiffPercent`: image mismatch ratio from visual diff.
+- `overlapRatio`: normalized text-overlap ratio.
+- `sharedLineCount`: number of shared normalized OCR lines.
+- `transitionKind`: `"screen-change"`, `"state-change"`, `"scroll-change"`,
+  `"dialog-change"`, or `"uncertain"`.
+- `addedLines`: OCR evidence lines that appeared in the destination frame.
+- `removedLines`: OCR evidence lines that disappeared from the source frame.
+- `inferredTransition`: human-readable transition label.
+- `confidence`: heuristic confidence score.
+- `evidence`: human-readable evidence strings.
+
+Known non-contract fields:
+
+- The exact contents and ordering of `addedLines`, `removedLines`, `inferredTransition`,
+  and `evidence`.
+- Exact `visualDiffPercent`, `overlapRatio`, `sharedLineCount`, and `confidence` values.
+- Classification thresholds and heuristics behind `transitionKind`.
+
+## `storyboard.summary.json`
+
+Schema version: `2`.
+
+Produced by storyboard understanding over OCR and, when present, transition artifacts.
+This artifact is an interpretive summary for review workflows.
+
+Stable top-level fields:
+
+- `schemaVersion`: `2`.
+- `createdAt`: ISO-8601 timestamp string for artifact creation.
+- `ocrPath`: path to the source `storyboard.ocr.json`.
+- `storyboardDir`: storyboard directory.
+- `videoPath`: source video path string.
+- `appNames`: inferred application or product names.
+- `views`: inferred view or screen labels.
+- `ocrQuality`: aggregate OCR quality summary.
+- `sampling`: aggregate sampling summary.
+- `interactionSegments`: inferred same-screen or workflow segments.
+- `likelyFlow`: text labels for confident frame-to-frame flow steps.
+- `likelyCapabilities`: inferred capability claims with frame evidence.
+- `openQuestions`: review questions for unresolved ambiguity.
+- `textDominance`: summary of likely narration/subtitle dominance.
+
+Stable `ocrQuality` fields:
+
+- `usableFrameShare`: share of OCR frames with `"usable"` quality.
+- `weakFrameShare`: share of OCR frames with `"weak"` quality.
+- `rejectedFrameShare`: share of OCR frames with `"reject"` quality.
+- `lowSignal`: whether OCR evidence is low-signal.
+- `notes`: human-readable quality notes.
+
+Stable `sampling` fields:
+
+- `mode`: `"uniform"` or `"hybrid"` when available.
+- `detectedChangeCount`: detected primary change count when available.
+- `frameReasonCounts.uniform`: count of uniform-selected frames.
+- `frameReasonCounts.change-peak`: count of change-peak-selected frames.
+- `frameReasonCounts.coverage-fill`: count of coverage-fill-selected frames.
+- `averageNearestChangeDistanceSeconds`: average nearest-change distance when available.
+- `notes`: human-readable sampling notes.
+
+Stable interaction segment fields:
+
+- `startFrameIndex`: first frame index in the segment.
+- `endFrameIndex`: last frame index in the segment.
+- `startTimestampSeconds`: first segment timestamp.
+- `endTimestampSeconds`: last segment timestamp.
+- `transitionKinds`: transition kinds included in the segment.
+- `summary`: human-readable segment summary.
+- `evidence`: human-readable evidence strings.
+
+Stable capability claim fields:
+
+- `claim`: inferred capability statement.
+- `evidence`: supporting OCR evidence records.
+- `evidence[*].frameIndex`: frame index containing the evidence line.
+- `evidence[*].line`: supporting OCR line.
+
+Stable `textDominance` fields:
+
+- `likelyNarrationDominated`: whether extracted text appears dominated by narration or
+  subtitles rather than UI.
+- `narrationLikeLineShare`: share of OCR lines classified as narration-like.
+- `narrationLikeFrameShare`: share of frames with narration-like dominance.
+- `dominantRegion`: `"top"`, `"middle"`, `"bottom"`, or `"mixed"` when available.
+- `notes`: human-readable text-dominance notes.
+
+Known non-contract fields:
+
+- Exact strings and ordering in `appNames`, `views`, `likelyFlow`, `openQuestions`,
+  `ocrQuality.notes`, `sampling.notes`, `interactionSegments[*].summary`,
+  `interactionSegments[*].evidence`, `likelyCapabilities[*].claim`,
+  `likelyCapabilities[*].evidence[*].line`, and `textDominance.notes`.
+- Exact share and average values, which may shift with OCR, sampling, and inference
+  heuristic changes.

@@ -9,6 +9,7 @@
 - [ ] OCR quality / semantic lines
 - [ ] transition inference
 - [ ] summary / understanding
+- [ ] artifact contracts
 - [ ] benchmark harness
 - [ ] skill-pack ergonomics
 - [ ] docs / repo surface
@@ -18,6 +19,8 @@
 - [ ] `npm run typecheck`
 - [ ] `npm test`
 - [ ] `npm run build`
+- [ ] artifact contracts / skill docs updated if behavior changed
+- [ ] package or installed-pack surface checked if shipped files changed
 
 If relevant, also note:
 

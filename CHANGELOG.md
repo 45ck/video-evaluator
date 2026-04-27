@@ -2,6 +2,16 @@
 
 All notable changes to this repo will be documented here.
 
+## Unreleased
+
+- Added operator docs for architecture, artifact contracts, YouTube evaluation,
+  release process, roadmap, and support.
+- Expanded repo-local skill docs with sequencing, inputs, outputs, failure
+  modes, interpretation guidance, and abstention rules.
+- Added optional YouTube benchmark gate flags for operational success,
+  negative-control false positives, and gold high-fit semantic passes.
+- Included docs and support files in the npm package and installed skill pack.
+
 ## v0.1.0 - 2026-04-26
 
 Initial standalone public release.

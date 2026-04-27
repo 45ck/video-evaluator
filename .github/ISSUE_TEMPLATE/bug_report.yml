@@ -52,10 +52,12 @@ body:
     id: artifacts
     attributes:
       label: Relevant artifacts
-      description: Paths or attached snippets from storyboard manifests, OCR, transitions, summary, or benchmark outputs
+      description: Paths or attached snippets from storyboard manifests, OCR, transitions, summary, benchmark outputs, or artifact contract mismatches
       placeholder: |
+        commit:
         /tmp/.../storyboard.ocr.json
         /tmp/.../storyboard.summary.json
+        docs/artifact-contracts.md section:
   - type: textarea
     id: notes
     attributes:

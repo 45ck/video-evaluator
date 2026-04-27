@@ -14,6 +14,54 @@ This skill produces:
 - artifact-aware prompt text
 - explicit review focus areas
 
+## Inputs
+
+Use the same bundle locators as `video-artifact-intake`, plus optional review
+context:
+
+```json
+{
+  "latestPointerRoot": "./output",
+  "specPath": "./specs/demo-review.md",
+  "focus": ["caption readability", "failure trace"]
+}
+```
+
+`focus` defaults to an empty array. `specPath` is optional and should point to a
+local spec or brief the reviewer should consider.
+
+## Outputs
+
+The result contains a grounded prompt assembled from discovered artifacts,
+recommended focus areas, and optional spec/focus inputs. It is designed to be
+handed to Codex or Claude Code for the next review step.
+
+## Sequencing Guidance
+
+Run after `video-artifact-intake` or `review-bundle` if you need to delegate a
+review. If storyboard artifacts are needed but absent, run
+`storyboard-extract`, `storyboard-ocr`, and optionally
+`storyboard-transitions`/`storyboard-understand` before packaging the prompt.
+
+## Interpretation Notes
+
+The generated prompt is a routing aid, not a review verdict. It should point the
+next agent at real files and questions. If the bundle is sparse, the prompt
+should preserve uncertainty rather than invent missing evidence.
+
+## Abstention Rules
+
+Do not use this skill to summarize artifacts you have not generated or found.
+Do not ask a reviewer to evaluate claims that are unsupported by the bundle,
+unless they are explicitly framed as open questions.
+
+## Failure Modes
+
+Wrong bundle locators produce a grounded prompt for the wrong run. Missing
+`specPath` should not fail the run if omitted, but an invalid provided path can
+make the prompt incomplete or misleading. If discovered artifacts are sparse,
+run intake/storyboard steps first.
+
 Repo-side runner:
 
 `node --import tsx scripts/harness/package-review-prompt.ts`

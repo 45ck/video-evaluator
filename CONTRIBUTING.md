@@ -11,6 +11,7 @@ Good contributions usually improve one of these areas:
 - transition inference
 - summary accuracy and abstention behavior
 - benchmark quality and benchmark honesty
+- artifact contract stability
 - installable skill-pack ergonomics
 
 Avoid broad claims or new features that make the repo sound more capable
@@ -29,11 +30,14 @@ npm run build
 
 Before opening a PR or merging a local change:
 
-- keep README and artifact docs aligned with the current capability
+- keep README and [artifact contracts](./docs/artifact-contracts.md)
+  aligned with the current capability
 - add or update tests when artifact shape or inference behavior changes
 - prefer explicit abstention over weak semantic claims
 - keep benchmark reporting honest; operational success is not the same as
   semantic understanding
+- update skill docs when a tool's required input, output, sequencing, or
+  failure behavior changes
 
 ## Benchmarking
 

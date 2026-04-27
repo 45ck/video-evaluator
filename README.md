@@ -99,6 +99,8 @@ agent/
   run-tool.mjs                 JSON-stdio tool runner for installed packs
 benchmarks/
   youtube-diverse-queries.json Public benchmark manifest
+docs/
+  *.md                         Operator docs, contracts, roadmap, releases
 scripts/
   bench/                       Benchmark runners
   harness/                     Local CLI entrypoints
@@ -111,6 +113,16 @@ src/
 tests/
   *.test.ts                    Unit tests
 ```
+
+## Documentation
+
+- [Documentation index](./docs/README.md)
+- [Architecture](./docs/architecture.md)
+- [Artifact contracts](./docs/artifact-contracts.md)
+- [YouTube evaluation](./docs/youtube-evaluation.md)
+- [Roadmap](./docs/roadmap.md)
+- [Release process](./docs/release-process.md)
+- [Support](./SUPPORT.md)
 
 ## Requirements
 
@@ -128,6 +140,7 @@ tests/
 - [Code of conduct](./CODE_OF_CONDUCT.md)
 - [Code owners](./CODEOWNERS)
 - [Security policy](./SECURITY.md)
+- [Support policy](./SUPPORT.md)
 - [Changelog](./CHANGELOG.md)
 - [CI workflow](./.github/workflows/ci.yml)
 - [Latest release](https://github.com/45ck/video-evaluator/releases/tag/v0.1.0)
@@ -375,30 +388,24 @@ video with actual evidence, not speculation.
 
 ## Artifacts Written By The Pipeline
 
-Typical files:
+The formal compatibility notes live in
+[docs/artifact-contracts.md](./docs/artifact-contracts.md). Typical files:
 
 - `storyboard.manifest.json`
 - `storyboard.ocr.json`
 - `storyboard.transitions.json`
 - `storyboard.summary.json`
 
-What they mean:
+Short version:
 
 - `storyboard.manifest.json`
-  - extracted frame list
-  - sampling reasons
-  - change-point diagnostics
+  - extracted frame list, sampling reasons, and change-point diagnostics
 - `storyboard.ocr.json`
-  - OCR output per frame
-  - raw `lines`
-  - filtered `semanticLines`
-  - line text, confidence, boxes, and regions
-  - per-frame `quality` classification
+  - raw OCR `lines`, filtered `semanticLines`, boxes, regions, and quality
 - `storyboard.transitions.json`
   - coarse frame-to-frame transition inference
 - `storyboard.summary.json`
-  - agent-facing high-level interpretation of the artifact
-  - includes both `textDominance` and `ocrQuality`
+  - agent-facing interpretation, including `textDominance` and `ocrQuality`
 
 ## Hybrid Sampling
 
@@ -432,6 +439,9 @@ Useful flags:
 - `--clip-seconds=75`
 - `--change-threshold=0.08`
 - `--min-confidence=45`
+- `--min-operational-successes=3`
+- `--max-negative-control-false-positives=0`
+- `--min-gold-high-fit-semantic-passes=1`
 
 What the benchmark does:
 
@@ -502,6 +512,15 @@ It also reports OCR signal quality so a case can fail honestly for
 "usable UI evidence was weak" instead of being misread as a semantic
 regression.
 
+Gate flags are optional. Without them, the benchmark remains report-only.
+When one or more gate thresholds are configured, the aggregate report
+includes a `gate` block and the process exits non-zero if any configured
+threshold fails.
+
+Use [docs/youtube-evaluation.md](./docs/youtube-evaluation.md) as the
+operating policy: public-video analysis is a regression and boundary test,
+not a cloning workflow.
+
 ### YouTube Download Notes
 
 The benchmark will try to stay operational on machines with old global
@@ -534,6 +553,10 @@ Current skill set:
 
 These are meant to give Codex and Claude Code a shared operational
 surface without requiring each repo to invent its own evaluation verbs.
+
+Each skill includes sequencing, input/output, failure-mode, and abstention
+guidance so agents can operate the pack without guessing from command names
+alone.
 
 ## Public API
 

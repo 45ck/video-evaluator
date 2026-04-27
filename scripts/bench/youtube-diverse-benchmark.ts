@@ -2,6 +2,7 @@
 import { execFile } from "node:child_process";
 import { access, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { extractStoryboard, inferStoryboardTransitions, ocrStoryboard, understandStoryboard } from "../../src/index.ts";
 
@@ -15,7 +16,7 @@ interface YtDlpRuntime {
   usesFirefoxCookies: boolean;
 }
 
-interface BenchmarkEntry {
+export interface BenchmarkEntry {
   id: string;
   category: string;
   query: string;
@@ -44,7 +45,7 @@ interface ResolvedVideo {
   resolutionMode: "pinned-url" | "pinned-video-id" | "query-search";
 }
 
-interface BenchmarkConfig {
+export interface BenchmarkConfig {
   manifestPath: string;
   outputRoot: string;
   limit?: number;
@@ -52,9 +53,10 @@ interface BenchmarkConfig {
   clipSeconds: number;
   changeThreshold: number;
   minConfidence: number;
+  gateThresholds: BenchmarkGateThresholds;
 }
 
-interface BenchmarkCaseReport {
+export interface BenchmarkCaseReport {
   status: "ok" | "error";
   id: string;
   category: string;
@@ -98,7 +100,7 @@ interface BenchmarkCaseReport {
   error?: string;
 }
 
-interface BenchmarkAggregateReport {
+export interface BenchmarkAggregateReport {
   generatedAt: string;
   manifestPath: string;
   outputRoot: string;
@@ -130,33 +132,79 @@ interface BenchmarkAggregateReport {
       withMeaningfulLikelyFlow: number;
     }
   >;
+  gate?: BenchmarkGateReport;
   reports: BenchmarkCaseReport[];
 }
 
-function parseArgs(argv: string[]) {
+export interface BenchmarkGateThresholds {
+  minOperationalSuccesses?: number;
+  maxNegativeControlFalsePositives?: number;
+  minGoldHighFitSemanticPasses?: number;
+}
+
+export interface BenchmarkGateCheck {
+  name: string;
+  passed: boolean;
+  actual: number;
+  threshold: number;
+  comparison: ">=" | "<=";
+  applicableCount?: number;
+}
+
+export interface BenchmarkGateReport {
+  enabled: boolean;
+  passed: boolean;
+  checks: BenchmarkGateCheck[];
+}
+
+function parseOptionalNumberFlag(argv: string[], flag: string) {
+  const value = argv.find((arg) => arg.startsWith(`${flag}=`))?.slice(flag.length + 1);
+  return value ? Number(value) : undefined;
+}
+
+function parseOptionalNonnegativeIntegerFlag(argv: string[], flag: string) {
+  const value = parseOptionalNumberFlag(argv, flag);
+  if (value === undefined) return undefined;
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(`${flag} must be a non-negative integer.`);
+  }
+  return value;
+}
+
+export function parseArgs(argv: string[]) {
   const manifestPath =
     argv.find((arg) => arg.startsWith("--manifest="))?.slice("--manifest=".length) ??
     "benchmarks/youtube-diverse-queries.json";
   const outputRoot =
     argv.find((arg) => arg.startsWith("--output-root="))?.slice("--output-root=".length) ??
     "/home/calvin/tmp/video-evaluator-youtube-benchmark";
-  const limitArg = argv.find((arg) => arg.startsWith("--limit="))?.slice("--limit=".length);
-  const frameCountArg = argv.find((arg) => arg.startsWith("--frame-count="))?.slice("--frame-count=".length);
-  const clipSecondsArg = argv.find((arg) => arg.startsWith("--clip-seconds="))?.slice("--clip-seconds=".length);
-  const changeThresholdArg = argv
-    .find((arg) => arg.startsWith("--change-threshold="))
-    ?.slice("--change-threshold=".length);
-  const minConfidenceArg = argv
-    .find((arg) => arg.startsWith("--min-confidence="))
-    ?.slice("--min-confidence=".length);
+  const limitArg = parseOptionalNumberFlag(argv, "--limit");
+  const frameCountArg = parseOptionalNumberFlag(argv, "--frame-count");
+  const clipSecondsArg = parseOptionalNumberFlag(argv, "--clip-seconds");
+  const changeThresholdArg = parseOptionalNumberFlag(argv, "--change-threshold");
+  const minConfidenceArg = parseOptionalNumberFlag(argv, "--min-confidence");
+  const minOperationalSuccesses = parseOptionalNonnegativeIntegerFlag(argv, "--min-operational-successes");
+  const maxNegativeControlFalsePositives = parseOptionalNonnegativeIntegerFlag(
+    argv,
+    "--max-negative-control-false-positives",
+  );
+  const minGoldHighFitSemanticPasses = parseOptionalNonnegativeIntegerFlag(
+    argv,
+    "--min-gold-high-fit-semantic-passes",
+  );
   return {
     manifestPath: resolve(manifestPath),
     outputRoot: resolve(outputRoot),
-    limit: limitArg ? Number(limitArg) : undefined,
-    frameCount: frameCountArg ? Number(frameCountArg) : 8,
-    clipSeconds: clipSecondsArg ? Number(clipSecondsArg) : 75,
-    changeThreshold: changeThresholdArg ? Number(changeThresholdArg) : 0.08,
-    minConfidence: minConfidenceArg ? Number(minConfidenceArg) : 45,
+    limit: limitArg,
+    frameCount: frameCountArg ?? 8,
+    clipSeconds: clipSecondsArg ?? 75,
+    changeThreshold: changeThresholdArg ?? 0.08,
+    minConfidence: minConfidenceArg ?? 45,
+    gateThresholds: {
+      ...(minOperationalSuccesses !== undefined ? { minOperationalSuccesses } : {}),
+      ...(maxNegativeControlFalsePositives !== undefined ? { maxNegativeControlFalsePositives } : {}),
+      ...(minGoldHighFitSemanticPasses !== undefined ? { minGoldHighFitSemanticPasses } : {}),
+    },
   } satisfies BenchmarkConfig;
 }
 
@@ -497,6 +545,87 @@ function evaluateSemanticPass(entry: BenchmarkEntry, report: BenchmarkCaseReport
   return true;
 }
 
+function hasSignal(
+  report: Pick<BenchmarkCaseReport, "appNames" | "views" | "interactionSegments" | "likelyFlow" | "likelyCapabilities">,
+  signal: NonNullable<BenchmarkEntry["forbiddenSignals"]>[number],
+) {
+  if (signal === "appNames") return report.appNames.length > 0;
+  if (signal === "views") return report.views.length > 0;
+  if (signal === "meaningfulFlow") return hasMeaningfulLikelyFlow(report);
+  return report.likelyCapabilities.length > 0;
+}
+
+export function isNegativeControlFalsePositive(entry: BenchmarkEntry, report: BenchmarkCaseReport) {
+  if (entry.curationStatus !== "negative-control" || report.status !== "ok") return false;
+  const forbiddenSignals = entry.forbiddenSignals ?? ["appNames", "views", "meaningfulFlow", "capabilities"];
+  return forbiddenSignals.some((signal) => hasSignal(report, signal));
+}
+
+function isGoldHighFitCase(entry: BenchmarkEntry) {
+  return entry.curationStatus === "gold" && entry.expectedFit === "high";
+}
+
+export function evaluateBenchmarkGate(
+  entries: BenchmarkEntry[],
+  aggregate: BenchmarkAggregateReport,
+  thresholds: BenchmarkGateThresholds,
+): BenchmarkGateReport {
+  const checks: BenchmarkGateCheck[] = [];
+  const entriesById = new Map(entries.map((entry) => [entry.id, entry]));
+
+  if (thresholds.minOperationalSuccesses !== undefined) {
+    checks.push({
+      name: "min-operational-successes",
+      passed: aggregate.successCount >= thresholds.minOperationalSuccesses,
+      actual: aggregate.successCount,
+      threshold: thresholds.minOperationalSuccesses,
+      comparison: ">=",
+      applicableCount: aggregate.caseCount,
+    });
+  }
+
+  if (thresholds.maxNegativeControlFalsePositives !== undefined) {
+    const negativeControlReports = aggregate.reports.filter((report) => {
+      const entry = entriesById.get(report.id);
+      return entry?.curationStatus === "negative-control";
+    });
+    const falsePositiveCount = negativeControlReports.filter((report) => {
+      const entry = entriesById.get(report.id);
+      return entry ? isNegativeControlFalsePositive(entry, report) : false;
+    }).length;
+    checks.push({
+      name: "max-negative-control-false-positives",
+      passed: falsePositiveCount <= thresholds.maxNegativeControlFalsePositives,
+      actual: falsePositiveCount,
+      threshold: thresholds.maxNegativeControlFalsePositives,
+      comparison: "<=",
+      applicableCount: negativeControlReports.length,
+    });
+  }
+
+  if (thresholds.minGoldHighFitSemanticPasses !== undefined) {
+    const goldHighFitReports = aggregate.reports.filter((report) => {
+      const entry = entriesById.get(report.id);
+      return entry ? isGoldHighFitCase(entry) : false;
+    });
+    const semanticPassCount = goldHighFitReports.filter((report) => report.semanticPass).length;
+    checks.push({
+      name: "min-gold-high-fit-semantic-passes",
+      passed: semanticPassCount >= thresholds.minGoldHighFitSemanticPasses,
+      actual: semanticPassCount,
+      threshold: thresholds.minGoldHighFitSemanticPasses,
+      comparison: ">=",
+      applicableCount: goldHighFitReports.length,
+    });
+  }
+
+  return {
+    enabled: checks.length > 0,
+    passed: checks.every((check) => check.passed),
+    checks,
+  };
+}
+
 function hasMeaningfulLikelyFlow(report: Pick<BenchmarkCaseReport, "interactionSegments" | "likelyFlow">) {
   if (report.interactionSegments.some((segment) => segment.transitionKinds.some((kind) => kind !== "screen-change"))) {
     return true;
@@ -533,6 +662,16 @@ function renderMarkdown(aggregate: BenchmarkAggregateReport) {
     `- Meaningful likely flow recovered: ${aggregate.metrics.withMeaningfulLikelyFlow}/${aggregate.successCount} ` +
       "(generic all-screen-change flows excluded)",
   );
+  if (aggregate.gate?.enabled) {
+    lines.push(`- Gate: ${aggregate.gate.passed ? "passed" : "failed"}`);
+    for (const check of aggregate.gate.checks) {
+      const applicable = check.applicableCount === undefined ? "" : `, applicable ${check.applicableCount}`;
+      lines.push(
+        `- Gate ${check.name}: ${check.passed ? "passed" : "failed"} ` +
+          `(actual ${check.actual} ${check.comparison} threshold ${check.threshold}${applicable})`,
+      );
+    }
+  }
   lines.push("");
   lines.push("## Fit Breakdown");
   lines.push("");
@@ -594,7 +733,7 @@ function renderMarkdown(aggregate: BenchmarkAggregateReport) {
   return `${lines.join("\n")}\n`;
 }
 
-function buildAggregateReport(config: BenchmarkConfig, reports: BenchmarkCaseReport[]): BenchmarkAggregateReport {
+export function buildAggregateReport(config: BenchmarkConfig, reports: BenchmarkCaseReport[]): BenchmarkAggregateReport {
   const okReports = reports.filter((report) => report.status === "ok");
   const fitBreakdown: BenchmarkAggregateReport["fitBreakdown"] = {
     high: { total: 0, ok: 0, semanticPass: 0, withAppNames: 0, withInteractionSegments: 0, withLikelyFlow: 0, withMeaningfulLikelyFlow: 0 },
@@ -747,6 +886,8 @@ async function run() {
   }
 
   const aggregateReport = buildAggregateReport(config, reports);
+  const gateReport = evaluateBenchmarkGate(entries, aggregateReport, config.gateThresholds);
+  if (gateReport.enabled) aggregateReport.gate = gateReport;
   const aggregatePath = join(outputRoot, "benchmark.report.json");
   const markdownPath = join(outputRoot, "benchmark.report.md");
   await writeFile(aggregatePath, `${JSON.stringify(aggregateReport, null, 2)}\n`, "utf8");
@@ -761,11 +902,24 @@ async function run() {
         caseCount: reports.length,
         successCount: aggregateReport.successCount,
         failureCount: aggregateReport.failureCount,
+        gate: aggregateReport.gate,
       },
       null,
       2,
     )}\n`,
   );
+
+  if (gateReport.enabled && !gateReport.passed) {
+    const failures = gateReport.checks.filter((check) => !check.passed);
+    process.stderr.write(
+      `Benchmark gate failed: ${failures
+        .map((check) => `${check.name} actual ${check.actual} ${check.comparison} threshold ${check.threshold}`)
+        .join("; ")}\n`,
+    );
+    process.exitCode = 1;
+  }
 }
 
-await run();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await run();
+}

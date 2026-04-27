@@ -43,6 +43,7 @@ body:
         - OCR quality / semantic lines
         - transition inference
         - summary / understanding
+        - artifact contracts
         - benchmark harness
         - skill-pack ergonomics
         - docs / repo surface
