@@ -29,7 +29,7 @@ interface OcrFrame {
 interface OcrManifest {
   storyboardDir: string;
   videoPath: string;
-  samplingMode?: "uniform" | "hybrid";
+  samplingMode?: "uniform" | "hybrid" | "segment";
   changeThreshold?: number;
   detectedChangeCount?: number;
   frames: OcrFrame[];
@@ -37,7 +37,7 @@ interface OcrManifest {
 }
 
 interface StoryboardManifestFallback {
-  samplingMode?: "uniform" | "hybrid";
+  samplingMode?: "uniform" | "hybrid" | "segment";
   detectedChangeCount?: number;
   frames?: Array<{
     index: number;
@@ -90,7 +90,7 @@ export interface StoryboardSummaryManifest {
     notes: string[];
   };
   sampling: {
-    mode?: "uniform" | "hybrid";
+    mode?: "uniform" | "hybrid" | "segment";
     detectedChangeCount?: number;
     frameReasonCounts: Record<"uniform" | "change-peak" | "coverage-fill", number>;
     averageNearestChangeDistanceSeconds?: number;
@@ -656,6 +656,8 @@ function buildSamplingSummary(
         `Selected frames were on average ${averageNearestChangeDistanceSeconds}s from the nearest detected change point.`,
       );
     }
+  } else if (effectiveSamplingMode === "segment") {
+    notes.push("Segment sampling was used, so each detected shot has frame coverage but motion inside each shot may still be missed.");
   } else {
     notes.push("Uniform sampling was used, so local UI changes between frames may be missed.");
   }

@@ -5,6 +5,7 @@ import {
   PackageReviewPromptRequestSchema,
   ReviewBundleRequestSchema,
   SegmentEvidenceRequestSchema,
+  SegmentStoryboardRequestSchema,
   SkillCatalogRequestSchema,
   StoryboardExtractRequestSchema,
   VideoShotsRequestSchema,
@@ -20,6 +21,7 @@ import {
   reviewBundle,
   runHarnessTool,
   runSegmentEvidence,
+  runSegmentStoryboard,
   runStoryboardExtract,
   runVideoShots,
   runStoryboardOcr,
@@ -70,6 +72,11 @@ const registry = {
     tool: "video-evaluator/segment-evidence",
     inputSchema: SegmentEvidenceRequestSchema,
     handler: async ({ input }) => runSegmentEvidence(input),
+  },
+  "segment-storyboard": {
+    tool: "video-evaluator/segment-storyboard",
+    inputSchema: SegmentStoryboardRequestSchema,
+    handler: async ({ input }) => runSegmentStoryboard(input),
   },
   "storyboard-ocr": {
     tool: "video-evaluator/storyboard-ocr",

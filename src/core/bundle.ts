@@ -228,6 +228,10 @@ export async function intakeBundle(request: VideoIntakeRequest): Promise<BundleA
       if (await pathExists(path)) artifacts[name] = path;
     }
     for (const name of STORYBOARD_SUBDIR_CANDIDATES) {
+      const path = join(rootDir, "segment-storyboard", name);
+      if (!artifacts[name] && await pathExists(path)) artifacts[name] = path;
+    }
+    for (const name of STORYBOARD_SUBDIR_CANDIDATES) {
       const path = join(rootDir, "storyboard", name);
       if (!artifacts[name] && await pathExists(path)) artifacts[name] = path;
     }

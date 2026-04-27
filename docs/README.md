@@ -44,11 +44,12 @@ The usual local path is:
 1. Normalize a video or output folder with `video-intake` or `review-bundle`.
 2. Extract frames with `storyboard-extract`.
 3. Optionally extract shot segments with `video-shots`.
-4. OCR frames with `storyboard-ocr`.
-5. Infer frame-to-frame changes with `storyboard-transitions`.
-6. Optionally fuse evidence by shot with `segment-evidence`.
-7. Summarize evidence with `storyboard-understand`.
-8. Package or compare review evidence with `package-review-prompt` or
+4. Optionally extract per-shot frames with `segment-storyboard`.
+5. OCR frames with `storyboard-ocr`.
+6. Infer frame-to-frame changes with `storyboard-transitions`.
+7. Optionally fuse evidence by shot with `segment-evidence`.
+8. Summarize evidence with `storyboard-understand`.
+9. Package or compare review evidence with `package-review-prompt` or
    `compare-bundles`.
 
 Typical outputs are:

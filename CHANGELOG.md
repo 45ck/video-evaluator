@@ -4,6 +4,8 @@ All notable changes to this repo will be documented here.
 
 ## Unreleased
 
+- Added `segment-storyboard` extraction so each shot can get OCR-ready
+  storyboard coverage.
 - Added `segment.evidence.json` fusion across shots, storyboard frames, OCR,
   transitions, and timeline evidence.
 - Added `video.shots.json` generation with scene-change segments and optional

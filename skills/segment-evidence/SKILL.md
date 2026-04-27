@@ -45,8 +45,9 @@ per shot, with:
 
 ## Sequencing Guidance
 
-Run `video-shots` first. Run `storyboard-extract`, `storyboard-ocr`,
-`storyboard-transitions`, and timeline-producing tools first if you want richer
+Run `video-shots` first. Run `segment-storyboard` plus `storyboard-ocr` when
+global storyboard sampling leaves too many empty segments. Run
+`storyboard-transitions` and timeline-producing tools first if you want richer
 segment evidence. The tool can still run with only `video.shots.json`, but most
 segments will be `weak` or `empty`.
 

@@ -35,6 +35,7 @@ The common review flow is:
 video-intake / review-bundle
   -> storyboard-extract
   -> video-shots
+  -> segment-storyboard
   -> storyboard-ocr
   -> storyboard-transitions
   -> segment-evidence
@@ -52,6 +53,11 @@ near likely visual changes.
 `video-shots` uses scene-change detection to produce a coarse list of shot
 segments plus optional representative frames. It is useful for dividing longer
 videos into inspectable parts before deeper OCR or semantic review.
+
+`segment-storyboard` reads `video.shots.json` and extracts one to three frames
+inside each shot. It writes a standard storyboard manifest under
+`segment-storyboard/` so OCR and transition tools can run on shot-aware
+coverage.
 
 `storyboard-ocr` runs OCR over extracted frames. It writes raw OCR lines,
 filtered semantic lines, confidence data, bounding boxes, coarse screen regions,
@@ -85,6 +91,8 @@ The main artifacts are:
 
 - `storyboard.manifest.json`: extracted frames, timestamps, sampling reasons,
   and extraction diagnostics.
+  Segment storyboards use `samplingMode: "segment"` and add per-frame shot
+  trace fields.
 - `storyboard.ocr.json`: OCR lines, filtered semantic UI evidence, confidence,
   regions, and frame-level quality.
 - `storyboard.transitions.json`: coarse frame-to-frame changes and supporting

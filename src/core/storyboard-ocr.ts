@@ -21,7 +21,7 @@ interface StoryboardManifestFrame {
 interface StoryboardManifest {
   outputDir: string;
   videoPath: string;
-  samplingMode?: "uniform" | "hybrid";
+  samplingMode?: "uniform" | "hybrid" | "segment";
   changeThreshold?: number;
   detectedChangeCount?: number;
   frames: StoryboardManifestFrame[];
@@ -78,7 +78,7 @@ export interface StoryboardOcrManifest {
   storyboardDir: string;
   videoPath: string;
   minConfidence: number;
-  samplingMode?: "uniform" | "hybrid";
+  samplingMode?: "uniform" | "hybrid" | "segment";
   changeThreshold?: number;
   detectedChangeCount?: number;
   frames: StoryboardOcrFrameResult[];

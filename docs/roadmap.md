@@ -19,6 +19,8 @@ evidence quality before making broader claims.
   `video.shots.json`.
 - Fuses shot, storyboard, OCR, transition, and timeline artifacts into
   `segment.evidence.json`.
+- Produces per-shot storyboard frames with `segment-storyboard` to reduce empty
+  segment evidence.
 
 ## Known Weak Spots
 
@@ -39,16 +41,19 @@ evidence quality before making broader claims.
   it does not identify intent, sources, or exact edits by itself.
 - Segment evidence routes available artifacts into the right time ranges; it
   still depends on the quality of those underlying artifacts.
+- Segment storyboards improve coverage but still sample sparse still frames,
+  not continuous motion.
 
 ## Near-Term Priorities
 
 1. Improve OCR quality gates before semantic inference.
-2. Strengthen subtitle, caption, narration, and overlay filtering.
-3. Prefer stable UI-anchor frames when summarizing flows.
-4. Improve app, view, and capability extraction for generic software demos.
-5. Add clearer regression fixtures for low-signal, narration-dominated, and
+2. Evaluate segment-storyboard coverage across diverse local benchmark videos.
+3. Strengthen subtitle, caption, narration, and overlay filtering.
+4. Prefer stable UI-anchor frames when summarizing flows.
+5. Improve app, view, and capability extraction for generic software demos.
+6. Add clearer regression fixtures for low-signal, narration-dominated, and
    subtitle-dominated cases.
-6. Keep benchmark reports honest by separating operational success from
+7. Keep benchmark reports honest by separating operational success from
    meaningful semantic recovery.
 
 ## Medium-Term Priorities

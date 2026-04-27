@@ -26,7 +26,7 @@ export interface StoryboardManifest {
   frameCount: number;
   durationSeconds: number;
   format: "jpg" | "png";
-  samplingMode: "uniform" | "hybrid";
+  samplingMode: "uniform" | "hybrid" | "segment";
   changeThreshold?: number;
   detectedChangeCount?: number;
   candidateDiagnostics?: {

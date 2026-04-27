@@ -42,6 +42,7 @@ This repo is for:
 - inferring coarse transitions between frames
 - generating summary artifacts from OCR evidence
 - fusing shot, storyboard, OCR, transition, and timeline evidence by segment
+- extracting per-shot storyboard frames when global sampling leaves gaps
 - packaging review prompts for agent use
 - comparing two video bundles or runs
 - materializing an installable skill pack for Codex or Claude Code
@@ -62,6 +63,7 @@ What it does reasonably well today:
 - extracts OCR, basic layout regions, coarse transition structure, and filtered UI evidence
 - extracts coarse shot boundaries and representative frames for longer videos
 - fuses available evidence into per-segment review maps
+- can produce shot-aware storyboard frames so each segment gets coverage
 - packages grounded prompts so agents can review runs from real artifacts
 - gives multiple repos a common evidence format
 
@@ -97,8 +99,9 @@ In plain English:
 7. Normalize any existing timestamps, subtitles, or event logs into
    `timeline.evidence.json`.
 8. Optionally extract coarse shot boundaries into `video.shots.json`.
-9. Optionally fuse per-shot evidence into `segment.evidence.json`.
-10. Summarize the artifact into a form an agent can actually use.
+9. Optionally extract one or more frames per shot with `segment-storyboard`.
+10. Optionally fuse per-shot evidence into `segment.evidence.json`.
+11. Summarize the artifact into a form an agent can actually use.
 
 ## Repo Layout
 
@@ -316,6 +319,28 @@ cat <<'JSON' | node --import tsx scripts/harness/segment-evidence.ts
 {
   "outputDir": "/path/to/run-or-video-folder",
   "maxTextItemsPerSegment": 8
+}
+JSON
+```
+
+### `segment-storyboard`
+
+Extracts one to three frames per shot segment and writes a standard
+`storyboard.manifest.json` under `segment-storyboard/`.
+
+Use when:
+
+- `segment.evidence.json` shows too many `empty` segments
+- global storyboard sampling skipped short shots or dense cuts
+
+Example:
+
+```bash
+cat <<'JSON' | node --import tsx scripts/harness/segment-storyboard.ts
+{
+  "outputDir": "/path/to/run-or-video-folder",
+  "framesPerSegment": 1,
+  "format": "jpg"
 }
 JSON
 ```
@@ -608,6 +633,7 @@ Current skill set:
 - `video-artifact-intake`
 - `video-shots`
 - `segment-evidence`
+- `segment-storyboard`
 - `review-bundle`
 - `storyboard-extract`
 - `storyboard-ocr`
@@ -633,6 +659,7 @@ Notable exports:
 - `extractStoryboard`
 - `extractVideoShots`
 - `buildSegmentEvidence`
+- `extractSegmentStoryboard`
 - `ocrStoryboard`
 - `inferStoryboardTransitions`
 - `classifyStoryboardTransition`
@@ -703,6 +730,8 @@ These are not hidden:
   source footage
 - segment evidence routes existing artifacts by time; it is not a full semantic
   video understanding model
+- per-shot storyboard frames improve coverage but still miss motion between
+  sampled frames
 
 If you are deciding whether to depend on this repo, this is the section
 to take seriously.

@@ -40,6 +40,12 @@ export const SegmentEvidenceRequestSchema = VideoIntakeRequestSchema.extend({
   maxTextItemsPerSegment: z.number().int().min(1).max(50).default(8),
 });
 
+export const SegmentStoryboardRequestSchema = VideoIntakeRequestSchema.extend({
+  storyboardOutputDir: z.string().min(1).optional(),
+  framesPerSegment: z.number().int().min(1).max(3).default(1),
+  format: z.enum(["jpg", "png"]).default("jpg"),
+});
+
 export const StoryboardOcrRequestSchema = z.object({
   storyboardDir: z.string().min(1).optional(),
   manifestPath: z.string().min(1).optional(),
@@ -80,6 +86,7 @@ export type ReviewBundleRequest = z.infer<typeof ReviewBundleRequestSchema>;
 export type StoryboardExtractRequest = z.infer<typeof StoryboardExtractRequestSchema>;
 export type VideoShotsRequest = z.infer<typeof VideoShotsRequestSchema>;
 export type SegmentEvidenceRequest = z.infer<typeof SegmentEvidenceRequestSchema>;
+export type SegmentStoryboardRequest = z.infer<typeof SegmentStoryboardRequestSchema>;
 export type StoryboardOcrRequest = z.infer<typeof StoryboardOcrRequestSchema>;
 export type StoryboardUnderstandRequest = z.infer<typeof StoryboardUnderstandRequestSchema>;
 export type StoryboardTransitionsRequest = z.infer<typeof StoryboardTransitionsRequestSchema>;

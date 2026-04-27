@@ -6,6 +6,7 @@ export {
   StoryboardExtractRequestSchema,
   VideoShotsRequestSchema,
   SegmentEvidenceRequestSchema,
+  SegmentStoryboardRequestSchema,
   StoryboardOcrRequestSchema,
   StoryboardUnderstandRequestSchema,
   StoryboardTransitionsRequestSchema,
@@ -17,6 +18,7 @@ export { diffPngBuffers, diffPngFiles } from "./core/image-diff.js";
 export { buildTimelineEvidence, collectTimelineSourceArtifacts } from "./core/timeline-evidence.js";
 export { buildShotSegments, extractVideoShots } from "./core/video-shots.js";
 export { buildSegmentEvidence } from "./core/segment-evidence.js";
+export { extractSegmentStoryboard, planSegmentStoryboardFrames } from "./core/segment-storyboard.js";
 export { extractStoryboard } from "./core/storyboard.js";
 export { ocrStoryboard } from "./core/storyboard-ocr.js";
 export {
@@ -30,6 +32,7 @@ export { installSkillPack } from "./harness/install-skill-pack.js";
 export { runVideoIntake } from "./harness/video-intake.js";
 export { runVideoShots } from "./harness/video-shots.js";
 export { runSegmentEvidence } from "./harness/segment-evidence.js";
+export { runSegmentStoryboard } from "./harness/segment-storyboard.js";
 export { runStoryboardExtract } from "./harness/storyboard-extract.js";
 export { runStoryboardOcr } from "./harness/storyboard-ocr.js";
 export { runStoryboardTransitions } from "./harness/storyboard-transitions.js";

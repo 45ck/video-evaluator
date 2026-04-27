@@ -30,6 +30,7 @@
     "video-intake": "node --import tsx scripts/harness/video-intake.ts",
     "video-shots": "node --import tsx scripts/harness/video-shots.ts",
     "segment-evidence": "node --import tsx scripts/harness/segment-evidence.ts",
+    "segment-storyboard": "node --import tsx scripts/harness/segment-storyboard.ts",
     "storyboard-extract": "node --import tsx scripts/harness/storyboard-extract.ts",
     "storyboard-ocr": "node --import tsx scripts/harness/storyboard-ocr.ts",
     "storyboard-understand": "node --import tsx scripts/harness/storyboard-understand.ts",

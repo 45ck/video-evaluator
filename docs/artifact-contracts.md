@@ -29,7 +29,7 @@ Compatibility expectations:
 
 Several artifacts repeat frame sampling fields. Their stable values are:
 
-- `samplingMode`: `"uniform"` or `"hybrid"`.
+- `samplingMode`: `"uniform"`, `"hybrid"`, or `"segment"`.
 - `samplingReason`: `"uniform"`, `"change-peak"`, or `"coverage-fill"`.
 - `samplingSignal`: `"scene-change"` or `"same-screen-change"`.
 - OCR/text `region`: `"top"`, `"middle"`, or `"bottom"`.
@@ -53,7 +53,9 @@ Stable top-level fields:
 - `frameCount`: requested number of sampled frames.
 - `durationSeconds`: detected source video duration in seconds.
 - `format`: frame image format, `"jpg"` or `"png"`.
-- `samplingMode`: `"uniform"` or `"hybrid"`.
+- `samplingMode`: `"uniform"`, `"hybrid"`, or `"segment"`. Segment mode is
+  produced by `segment-storyboard`, not by the standard `storyboard-extract`
+  request.
 - `changeThreshold`: present for hybrid sampling; scene-change threshold used during
   candidate detection.
 - `detectedChangeCount`: present for hybrid sampling; count of primary detected change
@@ -70,9 +72,15 @@ Stable frame fields:
   to the nearest primary detected change candidate.
 - `samplingSignal`: present for change-peak frames when available; candidate source.
 - `samplingScore`: present for change-peak frames when available; candidate score.
+- `sourceShotIndex`: present for segment storyboards; source
+  `video.shots.json` shot index.
+- `segmentPosition`: present for segment storyboards; `"early"`, `"middle"`,
+  or `"late"`.
 
 Known non-contract fields:
 
+- `frames[*].sourceShotIndex` and `frames[*].segmentPosition` are meaningful
+  only for `samplingMode: "segment"`.
 - `candidateDiagnostics`: debug summary of hybrid candidate selection.
 - `candidateDiagnostics.sourceCounts`.
 - `candidateDiagnostics.contextGeneratedCount`.
