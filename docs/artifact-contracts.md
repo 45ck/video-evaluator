@@ -362,3 +362,57 @@ Known non-contract fields:
   source compression, and the chosen `sceneThreshold`.
 - Representative frames are diagnostics. Consumers should not assume they are
   portable across machines.
+
+## `segment.evidence.json`
+
+Schema version: `1`.
+
+Produced by `segment-evidence` after `video.shots.json` exists. This artifact
+maps each shot segment to overlapping storyboard frames, OCR text, transition
+records, and timeline evidence. It is an evidence router, not a semantic
+understanding verdict.
+
+Stable top-level fields:
+
+- `schemaVersion`: `1`.
+- `createdAt`: ISO-8601 timestamp string for artifact creation.
+- `rootDir`: source bundle root directory when available.
+- `videoPath`: primary video path when available.
+- `sourceArtifacts`: map of source artifact names to paths.
+- `segments`: ordered segment evidence records.
+- `summary`: aggregate segment counts and source artifact names.
+
+Stable segment fields:
+
+- `index`: one-based segment index.
+- `sourceShotIndex`: source `video.shots.json` shot index.
+- `startSeconds`: segment start time in seconds.
+- `endSeconds`: segment end time in seconds.
+- `durationSeconds`: segment duration in seconds.
+- `representativeTimestampSeconds`: timestamp chosen by `video-shots` when
+  available.
+- `representativeFramePath`: representative shot frame path when available.
+- `evidenceStatus`: `"usable"`, `"weak"`, or `"empty"`.
+- `evidenceCounts`: counts of mapped storyboard, OCR, timeline, and transition
+  evidence.
+- `storyboardFrames`: overlapping storyboard frame records.
+- `timelineItems`: overlapping timeline evidence records.
+- `transitions`: overlapping storyboard transition records.
+- `textEvidence`: selected OCR and timeline text snippets for quick review.
+- `notes`: human-readable abstention or routing notes.
+
+Stable `evidenceCounts` fields:
+
+- `storyboardFrames`: count of storyboard frames inside the segment.
+- `usableOcrFrames`: count of overlapping OCR frames with usable quality.
+- `weakOcrFrames`: count of overlapping OCR frames with weak quality.
+- `rejectedOcrFrames`: count of overlapping OCR frames with rejected quality.
+- `timelineItems`: count of overlapping timeline items.
+- `transitions`: count of overlapping transitions.
+
+Known non-contract fields:
+
+- `evidenceStatus` is a routing heuristic. It can change as OCR, transition,
+  and timeline quality heuristics improve.
+- `textEvidence` selection and ordering are preview-oriented and may change
+  without a schema-version bump.

@@ -37,7 +37,8 @@ recommended focus areas, and optional spec/focus inputs. It is designed to be
 handed to Codex or Claude Code for the next review step. When
 `timeline.evidence.json` exists, the prompt includes a short timeline preview.
 When `video.shots.json` exists, the prompt includes a short shot-structure
-preview.
+preview. When `segment.evidence.json` exists, the prompt includes a short
+segment-evidence preview.
 
 ## Sequencing Guidance
 
@@ -57,6 +58,9 @@ before relying on sparse storyboard frames.
 
 Use shot evidence to choose which video segments or representative frames need
 closer inspection. Do not treat shot boundaries as semantic proof by themselves.
+
+Use segment evidence as the fastest routing layer for which parts have usable,
+weak, or empty evidence.
 
 ## Abstention Rules
 

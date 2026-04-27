@@ -17,6 +17,8 @@ evidence quality before making broader claims.
   `timeline.evidence.json`.
 - Extracts coarse shot segments and representative frames into
   `video.shots.json`.
+- Fuses shot, storyboard, OCR, transition, and timeline artifacts into
+  `segment.evidence.json`.
 
 ## Known Weak Spots
 
@@ -35,6 +37,8 @@ evidence quality before making broader claims.
   higher-level semantic timeline.
 - Shot evidence is scene-boundary based. It helps split videos into parts, but
   it does not identify intent, sources, or exact edits by itself.
+- Segment evidence routes available artifacts into the right time ranges; it
+  still depends on the quality of those underlying artifacts.
 
 ## Near-Term Priorities
 
@@ -56,8 +60,8 @@ evidence quality before making broader claims.
    availability.
 5. Improve installed-pack ergonomics and diagnostics for missing tools such as
    `ffmpeg`, `ffprobe`, or OCR assets.
-6. Add `visual.probes.json` and fuse shot, OCR, transition, and timeline
-   evidence into a shared semantic timeline.
+6. Add `visual.probes.json` and turn segment evidence into a richer semantic
+   timeline when evidence quality is strong enough.
 
 ## Non-Goals
 

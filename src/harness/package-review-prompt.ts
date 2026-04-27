@@ -86,6 +86,14 @@ function buildPrompt(input: PackageReviewPromptRequest, bundle: Awaited<ReturnTy
     }
   }
 
+  const segmentPreview = (bundle as typeof bundle & { segmentPreview?: string[] }).segmentPreview;
+  if (segmentPreview && segmentPreview.length > 0) {
+    lines.push("- Segment evidence preview:");
+    for (const line of segmentPreview) {
+      lines.push(`  - ${line}`);
+    }
+  }
+
   lines.push("- Review focus:");
   for (const focus of [...bundle.recommendedFocus, ...input.focus]) {
     lines.push(`  - ${focus}`);
@@ -112,6 +120,7 @@ export async function packageReviewPrompt(input: PackageReviewPromptRequest) {
   const summaryPreview = await loadSummaryPreview(bundle.artifacts["storyboard.summary.json"]);
   const timelinePreview = await loadTimelinePreview(bundle.artifacts["timeline.evidence.json"]);
   const shotPreview = await loadShotPreview(bundle.artifacts["video.shots.json"]);
+  const segmentPreview = await loadSegmentPreview(bundle.artifacts["segment.evidence.json"]);
   return {
     bundle: {
       ...bundle,
@@ -119,6 +128,7 @@ export async function packageReviewPrompt(input: PackageReviewPromptRequest) {
       ...(summaryPreview ? { summaryPreview } : {}),
       ...(timelinePreview.length > 0 ? { timelinePreview } : {}),
       ...(shotPreview.length > 0 ? { shotPreview } : {}),
+      ...(segmentPreview.length > 0 ? { segmentPreview } : {}),
     },
     prompt: buildPrompt(normalized, {
       ...bundle,
@@ -126,6 +136,7 @@ export async function packageReviewPrompt(input: PackageReviewPromptRequest) {
       ...(summaryPreview ? { summaryPreview } : {}),
       ...(timelinePreview.length > 0 ? { timelinePreview } : {}),
       ...(shotPreview.length > 0 ? { shotPreview } : {}),
+      ...(segmentPreview.length > 0 ? { segmentPreview } : {}),
     }),
   };
 }
@@ -223,6 +234,39 @@ async function loadShotPreview(shotsPath: string | undefined): Promise<string[]>
       const duration = typeof shot.durationSeconds === "number" ? `${shot.durationSeconds.toFixed(2)}s` : "unknown";
       const frame = shot.representativeFramePath ? ` frame=${shot.representativeFramePath}` : "";
       return `shot ${shotIndex} ${start}-${end}s (${duration})${frame}`;
+    });
+  } catch {
+    return [];
+  }
+}
+
+async function loadSegmentPreview(segmentPath: string | undefined): Promise<string[]> {
+  if (!segmentPath) return [];
+  try {
+    const raw = await readFile(segmentPath, "utf8");
+    const parsed = JSON.parse(raw) as {
+      segments?: Array<{
+        index?: number;
+        startSeconds?: number;
+        endSeconds?: number;
+        evidenceStatus?: string;
+        evidenceCounts?: {
+          storyboardFrames?: number;
+          timelineItems?: number;
+          transitions?: number;
+        };
+        textEvidence?: Array<{ text?: string }>;
+      }>;
+    };
+    return (parsed.segments ?? []).slice(0, 8).map((segment, index) => {
+      const segmentIndex = typeof segment.index === "number" ? segment.index : index + 1;
+      const start = typeof segment.startSeconds === "number" ? segment.startSeconds.toFixed(2) : "?";
+      const end = typeof segment.endSeconds === "number" ? segment.endSeconds.toFixed(2) : "?";
+      const status = segment.evidenceStatus ?? "unknown";
+      const counts = segment.evidenceCounts ?? {};
+      const text = segment.textEvidence?.map((item) => item.text).filter(Boolean).slice(0, 2).join(" | ");
+      const textSuffix = text ? ` text=${text}` : "";
+      return `segment ${segmentIndex} ${start}-${end}s status=${status} frames=${counts.storyboardFrames ?? 0} timeline=${counts.timelineItems ?? 0} transitions=${counts.transitions ?? 0}${textSuffix}`;
     });
   } catch {
     return [];

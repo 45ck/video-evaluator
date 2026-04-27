@@ -37,6 +37,7 @@ video-intake / review-bundle
   -> video-shots
   -> storyboard-ocr
   -> storyboard-transitions
+  -> segment-evidence
   -> storyboard-understand
   -> package-review-prompt / compare-bundles
 ```
@@ -59,6 +60,10 @@ and per-frame quality status.
 `storyboard-transitions` compares adjacent OCR/frame evidence and assigns coarse
 transition kinds such as `screen-change`, `state-change`, `scroll-change`,
 `dialog-change`, or `uncertain`.
+
+`segment-evidence` fuses shot boundaries with available storyboard frames, OCR,
+transitions, and timeline items. It writes one segment record per shot and marks
+each segment as `usable`, `weak`, or `empty` based on available evidence.
 
 `storyboard-understand` builds an agent-facing summary from OCR and transition
 artifacts. It may identify app names, views, likely flow, likely capabilities,
@@ -90,6 +95,8 @@ The main artifacts are:
   evidence normalized from producer artifacts.
 - `video.shots.json`: coarse scene-change segments and optional representative
   frame paths.
+- `segment.evidence.json`: per-shot evidence map that joins visual, OCR,
+  transition, and timeline artifacts.
 
 Downstream agents should cite or reason from these artifacts. If an artifact is
 missing, low-signal, or internally inconsistent, the caller should treat the

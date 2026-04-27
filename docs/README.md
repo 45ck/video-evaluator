@@ -5,7 +5,7 @@ standalone video-evaluation skill pack.
 
 The short version:
 
-- The system extracts storyboard and shot evidence from videos.
+- The system extracts storyboard, shot, and segment evidence from videos.
 - OCR and transition inference turn frames into reviewable artifacts.
 - Agents should review those artifacts, not guess from the video filename.
 - YouTube evaluation is a regression and boundary test, not a cloning workflow.
@@ -46,8 +46,9 @@ The usual local path is:
 3. Optionally extract shot segments with `video-shots`.
 4. OCR frames with `storyboard-ocr`.
 5. Infer frame-to-frame changes with `storyboard-transitions`.
-6. Summarize evidence with `storyboard-understand`.
-7. Package or compare review evidence with `package-review-prompt` or
+6. Optionally fuse evidence by shot with `segment-evidence`.
+7. Summarize evidence with `storyboard-understand`.
+8. Package or compare review evidence with `package-review-prompt` or
    `compare-bundles`.
 
 Typical outputs are:
@@ -58,6 +59,7 @@ Typical outputs are:
 - `storyboard.summary.json`
 - `timeline.evidence.json`
 - `video.shots.json`
+- `segment.evidence.json`
 
 Those files are the contract operators should inspect when debugging a review.
 

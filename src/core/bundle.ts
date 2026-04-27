@@ -15,6 +15,7 @@ const REPORT_CANDIDATES = [
   "score.json",
   "publish.json",
   "video.shots.json",
+  "segment.evidence.json",
   "storyboard.manifest.json",
   "storyboard.ocr.json",
   "storyboard.summary.json",
@@ -27,6 +28,13 @@ const REPORT_CANDIDATES = [
   "subtitles.vtt",
   "subtitles.srt",
   "trace.zip",
+] as const;
+
+const STORYBOARD_SUBDIR_CANDIDATES = [
+  "storyboard.manifest.json",
+  "storyboard.ocr.json",
+  "storyboard.summary.json",
+  "storyboard.transitions.json",
 ] as const;
 
 export interface BundleArtifactMap {
@@ -107,6 +115,7 @@ function deriveRecommendedFocus(
   if (artifacts["timestamps.json"]) focus.add("audio timeline");
   if (artifacts["timeline.evidence.json"]) focus.add("timeline evidence");
   if (artifacts["video.shots.json"]) focus.add("video shot structure");
+  if (artifacts["segment.evidence.json"]) focus.add("segment evidence");
   if (artifacts["subtitles.vtt"]) focus.add("caption readability");
   if (artifacts["trace.zip"]) focus.add("failure trace");
   if (artifacts["storyboard.manifest.json"]) focus.add("storyboard evidence");
@@ -217,6 +226,10 @@ export async function intakeBundle(request: VideoIntakeRequest): Promise<BundleA
     for (const name of REPORT_CANDIDATES) {
       const path = join(rootDir, name);
       if (await pathExists(path)) artifacts[name] = path;
+    }
+    for (const name of STORYBOARD_SUBDIR_CANDIDATES) {
+      const path = join(rootDir, "storyboard", name);
+      if (!artifacts[name] && await pathExists(path)) artifacts[name] = path;
     }
     if (!artifacts["timeline.evidence.json"] && Object.keys(collectTimelineSourceArtifacts(artifacts)).length > 0) {
       const timelinePath = join(rootDir, "timeline.evidence.json");

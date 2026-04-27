@@ -50,6 +50,8 @@ The result is a normalized bundle map with:
   or `subtitles.vtt` exists in the bundle.
 - `video.shots.json`: discovered when shot extraction has already been run for
   the bundle.
+- `segment.evidence.json`: discovered when segment fusion has already been run
+  for the bundle.
 
 ## Sequencing Guidance
 
@@ -60,7 +62,9 @@ with `storyboard-extract`.
 
 When `timeline.evidence.json` is present, inspect it before making sequence,
 caption, transcript, or action-timing claims. When `video.shots.json` is
-present, use it as a coarse part map before deep visual review.
+present, use it as a coarse part map before deep visual review. When
+`segment.evidence.json` is present, inspect it first for per-segment evidence
+availability and abstention signals.
 
 ## Interpretation Notes
 

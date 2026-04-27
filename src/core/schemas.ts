@@ -35,6 +35,11 @@ export const VideoShotsRequestSchema = z.object({
   extractRepresentativeFrames: z.boolean().default(true),
 });
 
+export const SegmentEvidenceRequestSchema = VideoIntakeRequestSchema.extend({
+  outputPath: z.string().min(1).optional(),
+  maxTextItemsPerSegment: z.number().int().min(1).max(50).default(8),
+});
+
 export const StoryboardOcrRequestSchema = z.object({
   storyboardDir: z.string().min(1).optional(),
   manifestPath: z.string().min(1).optional(),
@@ -74,6 +79,7 @@ export type VideoIntakeRequest = z.infer<typeof VideoIntakeRequestSchema>;
 export type ReviewBundleRequest = z.infer<typeof ReviewBundleRequestSchema>;
 export type StoryboardExtractRequest = z.infer<typeof StoryboardExtractRequestSchema>;
 export type VideoShotsRequest = z.infer<typeof VideoShotsRequestSchema>;
+export type SegmentEvidenceRequest = z.infer<typeof SegmentEvidenceRequestSchema>;
 export type StoryboardOcrRequest = z.infer<typeof StoryboardOcrRequestSchema>;
 export type StoryboardUnderstandRequest = z.infer<typeof StoryboardUnderstandRequestSchema>;
 export type StoryboardTransitionsRequest = z.infer<typeof StoryboardTransitionsRequestSchema>;

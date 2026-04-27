@@ -29,6 +29,7 @@
     "install-skill-pack": "node --import tsx scripts/harness/install-skill-pack.ts",
     "video-intake": "node --import tsx scripts/harness/video-intake.ts",
     "video-shots": "node --import tsx scripts/harness/video-shots.ts",
+    "segment-evidence": "node --import tsx scripts/harness/segment-evidence.ts",
     "storyboard-extract": "node --import tsx scripts/harness/storyboard-extract.ts",
     "storyboard-ocr": "node --import tsx scripts/harness/storyboard-ocr.ts",
     "storyboard-understand": "node --import tsx scripts/harness/storyboard-understand.ts",

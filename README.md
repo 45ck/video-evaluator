@@ -24,7 +24,7 @@ before other repos depend on it.
   timeline reconstruction
 - Output shape: `storyboard.manifest.json`, `storyboard.ocr.json`,
   `storyboard.transitions.json`, `storyboard.summary.json`,
-  `timeline.evidence.json`, `video.shots.json`
+  `timeline.evidence.json`, `video.shots.json`, `segment.evidence.json`
 - Maturity: experimental but benchmarked, with explicit low-signal
   reporting instead of pretending weak OCR is semantic proof
 
@@ -41,6 +41,7 @@ This repo is for:
 - OCRing the extracted frames
 - inferring coarse transitions between frames
 - generating summary artifacts from OCR evidence
+- fusing shot, storyboard, OCR, transition, and timeline evidence by segment
 - packaging review prompts for agent use
 - comparing two video bundles or runs
 - materializing an installable skill pack for Codex or Claude Code
@@ -60,6 +61,7 @@ What it does reasonably well today:
 - works well enough for first-pass review of UI-heavy product videos
 - extracts OCR, basic layout regions, coarse transition structure, and filtered UI evidence
 - extracts coarse shot boundaries and representative frames for longer videos
+- fuses available evidence into per-segment review maps
 - packages grounded prompts so agents can review runs from real artifacts
 - gives multiple repos a common evidence format
 
@@ -95,7 +97,8 @@ In plain English:
 7. Normalize any existing timestamps, subtitles, or event logs into
    `timeline.evidence.json`.
 8. Optionally extract coarse shot boundaries into `video.shots.json`.
-9. Summarize the artifact into a form an agent can actually use.
+9. Optionally fuse per-shot evidence into `segment.evidence.json`.
+10. Summarize the artifact into a form an agent can actually use.
 
 ## Repo Layout
 
@@ -296,6 +299,27 @@ cat <<'JSON' | node --import tsx scripts/harness/video-shots.ts
 JSON
 ```
 
+### `segment-evidence`
+
+Fuses `video.shots.json` with available storyboard, OCR, transition, and
+timeline artifacts.
+
+Use when:
+
+- you want one ordered per-segment map of the evidence
+- you need to know which parts are usable, weak, or empty before reviewing
+
+Example:
+
+```bash
+cat <<'JSON' | node --import tsx scripts/harness/segment-evidence.ts
+{
+  "outputDir": "/path/to/run-or-video-folder",
+  "maxTextItemsPerSegment": 8
+}
+JSON
+```
+
 ### `storyboard-ocr`
 
 Runs OCR over extracted frames and writes `storyboard.ocr.json`.
@@ -425,6 +449,7 @@ The formal compatibility notes live in
 - `storyboard.summary.json`
 - `timeline.evidence.json`
 - `video.shots.json`
+- `segment.evidence.json`
 
 Short version:
 
@@ -441,6 +466,9 @@ Short version:
     and `subtitles.vtt`
 - `video.shots.json`
   - coarse scene-change segments and optional representative frame paths
+- `segment.evidence.json`
+  - per-shot evidence map joining storyboard frames, OCR, transitions, and
+    timeline items with `usable`, `weak`, or `empty` status
 
 ## Hybrid Sampling
 
@@ -579,6 +607,7 @@ Current skill set:
 - `install-skill-pack`
 - `video-artifact-intake`
 - `video-shots`
+- `segment-evidence`
 - `review-bundle`
 - `storyboard-extract`
 - `storyboard-ocr`
@@ -603,6 +632,7 @@ Notable exports:
 - request schemas
 - `extractStoryboard`
 - `extractVideoShots`
+- `buildSegmentEvidence`
 - `ocrStoryboard`
 - `inferStoryboardTransitions`
 - `classifyStoryboardTransition`
@@ -657,6 +687,7 @@ Then inspect:
 - `storyboard.transitions.json`
 - `storyboard.summary.json`
 - `video.shots.json`
+- `segment.evidence.json`
 
 ## Known Weak Spots
 
@@ -670,6 +701,8 @@ These are not hidden:
   a full semantic timeline summary
 - shot extraction is coarse scene segmentation, not a semantic decompile of
   source footage
+- segment evidence routes existing artifacts by time; it is not a full semantic
+  video understanding model
 
 If you are deciding whether to depend on this repo, this is the section
 to take seriously.
