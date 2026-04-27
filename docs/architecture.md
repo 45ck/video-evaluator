@@ -59,6 +59,10 @@ transition kinds such as `screen-change`, `state-change`, `scroll-change`,
 artifacts. It may identify app names, views, likely flow, likely capabilities,
 text dominance, OCR quality, and open questions.
 
+`video-intake` also normalizes existing timeline-like producer artifacts into
+`timeline.evidence.json` when `timestamps.json`, `events.json`, or
+`subtitles.vtt` are present.
+
 `package-review-prompt` creates a grounded review prompt from the artifacts.
 `compare-bundles` compares two video-output bundles or runs.
 
@@ -77,6 +81,8 @@ The main artifacts are:
   evidence.
 - `storyboard.summary.json`: higher-level interpretation for agents, including
   quality and uncertainty fields.
+- `timeline.evidence.json`: timestamped transcript, caption, and action
+  evidence normalized from producer artifacts.
 
 Downstream agents should cite or reason from these artifacts. If an artifact is
 missing, low-signal, or internally inconsistent, the caller should treat the

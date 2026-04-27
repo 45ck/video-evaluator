@@ -12,6 +12,7 @@ export {
 } from "./core/schemas.js";
 export { intakeBundle, copySkillPack } from "./core/bundle.js";
 export { diffPngBuffers, diffPngFiles } from "./core/image-diff.js";
+export { buildTimelineEvidence, collectTimelineSourceArtifacts } from "./core/timeline-evidence.js";
 export { extractStoryboard } from "./core/storyboard.js";
 export { ocrStoryboard } from "./core/storyboard-ocr.js";
 export {

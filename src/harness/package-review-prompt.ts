@@ -70,6 +70,14 @@ function buildPrompt(input: PackageReviewPromptRequest, bundle: Awaited<ReturnTy
     }
   }
 
+  const timelinePreview = (bundle as typeof bundle & { timelinePreview?: string[] }).timelinePreview;
+  if (timelinePreview && timelinePreview.length > 0) {
+    lines.push("- Timeline evidence preview:");
+    for (const line of timelinePreview) {
+      lines.push(`  - ${line}`);
+    }
+  }
+
   lines.push("- Review focus:");
   for (const focus of [...bundle.recommendedFocus, ...input.focus]) {
     lines.push(`  - ${focus}`);
@@ -90,19 +98,23 @@ function buildPrompt(input: PackageReviewPromptRequest, bundle: Awaited<ReturnTy
 }
 
 export async function packageReviewPrompt(input: PackageReviewPromptRequest) {
-  const bundle = await intakeBundle(input);
+  const normalized = PackageReviewPromptRequestSchema.parse(input);
+  const bundle = await intakeBundle(normalized);
   const ocrPreview = await loadOcrPreview(bundle.artifacts["storyboard.ocr.json"]);
   const summaryPreview = await loadSummaryPreview(bundle.artifacts["storyboard.summary.json"]);
+  const timelinePreview = await loadTimelinePreview(bundle.artifacts["timeline.evidence.json"]);
   return {
     bundle: {
       ...bundle,
       ...(ocrPreview.length > 0 ? { ocrPreview } : {}),
       ...(summaryPreview ? { summaryPreview } : {}),
+      ...(timelinePreview.length > 0 ? { timelinePreview } : {}),
     },
-    prompt: buildPrompt(input, {
+    prompt: buildPrompt(normalized, {
       ...bundle,
       ...(ocrPreview.length > 0 ? { ocrPreview } : {}),
       ...(summaryPreview ? { summaryPreview } : {}),
+      ...(timelinePreview.length > 0 ? { timelinePreview } : {}),
     }),
   };
 }
@@ -151,6 +163,32 @@ async function loadSummaryPreview(
     };
   } catch {
     return null;
+  }
+}
+
+async function loadTimelinePreview(timelinePath: string | undefined): Promise<string[]> {
+  if (!timelinePath) return [];
+  try {
+    const raw = await readFile(timelinePath, "utf8");
+    const parsed = JSON.parse(raw) as {
+      evidence?: Array<{
+        kind?: string;
+        startSeconds?: number;
+        endSeconds?: number;
+        text?: string;
+        action?: string;
+      }>;
+    };
+    return (parsed.evidence ?? [])
+      .slice(0, 8)
+      .map((item) => {
+        const label = item.text ?? item.action ?? "timeline item";
+        const start = typeof item.startSeconds === "number" ? item.startSeconds.toFixed(2) : "?";
+        const end = typeof item.endSeconds === "number" ? item.endSeconds.toFixed(2) : "?";
+        return `${item.kind ?? "evidence"} ${start}-${end}s: ${label}`;
+      });
+  } catch {
+    return [];
   }
 }
 

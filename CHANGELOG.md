@@ -2,6 +2,14 @@
 
 All notable changes to this repo will be documented here.
 
+## Unreleased
+
+- Added `timeline.evidence.json` generation from `timestamps.json`,
+  `events.json`, and `subtitles.vtt` during bundle intake.
+- Added timeline evidence previews to packaged review prompts.
+- Fixed direct `packageReviewPrompt()` calls to apply schema defaults before
+  building prompts.
+
 ## v0.1.1 - 2026-04-27
 
 - Added operator docs for architecture, artifact contracts, YouTube evaluation,

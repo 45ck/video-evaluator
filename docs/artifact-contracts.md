@@ -270,3 +270,54 @@ Known non-contract fields:
   `likelyCapabilities[*].evidence[*].line`, and `textDominance.notes`.
 - Exact share and average values, which may shift with OCR, sampling, and inference
   heuristic changes.
+
+## `timeline.evidence.json`
+
+Schema version: `1`.
+
+Produced during bundle intake when one or more timeline source artifacts are
+available. This artifact normalizes producer-specific time evidence into a
+single ordered list that review prompts and downstream adapters can inspect.
+
+Current source artifacts:
+
+- `timestamps.json`: content-machine-style scene and word timestamps.
+- `events.json`: demo-machine-style action events.
+- `subtitles.vtt`: WebVTT caption cues.
+
+Stable top-level fields:
+
+- `schemaVersion`: `1`.
+- `createdAt`: ISO-8601 timestamp string for artifact creation.
+- `rootDir`: source bundle root directory.
+- `sourceArtifacts`: map of source artifact names to paths.
+- `evidence`: ordered timeline evidence records.
+- `summary`: aggregate counts and inferred duration.
+
+Stable evidence fields:
+
+- `id`: stable per-artifact evidence id assigned in timeline order.
+- `kind`: `"transcript"`, `"caption"`, or `"action"`.
+- `sourceType`: `"timestamps-scene"`, `"timestamps-words"`,
+  `"subtitles-vtt"`, or `"events-json"`.
+- `sourcePath`: path to the source artifact.
+- `startSeconds`: evidence start time in seconds.
+- `endSeconds`: evidence end time in seconds.
+- `text`: normalized text for transcript or caption evidence when available.
+- `action`: action label for action evidence when available.
+- `confidence`: average source confidence when available.
+- `metadata`: source-specific diagnostic fields.
+
+Stable summary fields:
+
+- `transcriptItems`: number of transcript evidence records.
+- `captionItems`: number of caption evidence records.
+- `actionItems`: number of action evidence records.
+- `durationSeconds`: max known evidence end time when available.
+
+Known non-contract fields:
+
+- Exact `id` numbering can change when producer artifacts add or remove items.
+- Exact `text` spacing can change with source parser normalization.
+- Source-specific `metadata` keys are diagnostic and may change without a
+  schema-version bump.

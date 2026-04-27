@@ -34,7 +34,8 @@ local spec or brief the reviewer should consider.
 
 The result contains a grounded prompt assembled from discovered artifacts,
 recommended focus areas, and optional spec/focus inputs. It is designed to be
-handed to Codex or Claude Code for the next review step.
+handed to Codex or Claude Code for the next review step. When
+`timeline.evidence.json` exists, the prompt includes a short timeline preview.
 
 ## Sequencing Guidance
 
@@ -48,6 +49,9 @@ review. If storyboard artifacts are needed but absent, run
 The generated prompt is a routing aid, not a review verdict. It should point the
 next agent at real files and questions. If the bundle is sparse, the prompt
 should preserve uncertainty rather than invent missing evidence.
+
+Use timeline evidence to ground ordering, caption, transcript, and action claims
+before relying on sparse storyboard frames.
 
 ## Abstention Rules
 

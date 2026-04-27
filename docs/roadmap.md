@@ -13,6 +13,8 @@ evidence quality before making broader claims.
 - Infers coarse transitions between sampled frames.
 - Packages evidence for agent review and bundle comparison.
 - Ships as a standalone skill pack for use across repos.
+- Normalizes producer timestamps, captions, and action logs into
+  `timeline.evidence.json`.
 
 ## Known Weak Spots
 
@@ -27,6 +29,8 @@ evidence quality before making broader claims.
   system understood the video.
 - Non-UI domains such as gameplay, vlogs, cooking, talks, sports, and cinematic
   footage remain poor fits.
+- Timeline evidence is not yet fused with storyboard/OCR evidence into a
+  higher-level semantic timeline.
 
 ## Near-Term Priorities
 
@@ -48,6 +52,8 @@ evidence quality before making broader claims.
    availability.
 5. Improve installed-pack ergonomics and diagnostics for missing tools such as
    `ffmpeg`, `ffprobe`, or OCR assets.
+6. Add `video.shots.json` and `visual.probes.json` so visual evidence can join
+   the timeline evidence spine.
 
 ## Non-Goals
 

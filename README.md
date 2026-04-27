@@ -23,7 +23,8 @@ before other repos depend on it.
 - Not solved yet: arbitrary-video understanding and exact click-by-click
   timeline reconstruction
 - Output shape: `storyboard.manifest.json`, `storyboard.ocr.json`,
-  `storyboard.transitions.json`, `storyboard.summary.json`
+  `storyboard.transitions.json`, `storyboard.summary.json`,
+  `timeline.evidence.json`
 - Maturity: experimental but benchmarked, with explicit low-signal
   reporting instead of pretending weak OCR is semantic proof
 
@@ -90,7 +91,9 @@ In plain English:
 5. Filter that OCR into likely UI evidence versus subtitle-like or noisy text.
 6. Infer whether frames look like screen changes, same-screen changes,
    dialog changes, or scroll changes.
-7. Summarize the artifact into a form an agent can actually use.
+7. Normalize any existing timestamps, subtitles, or event logs into
+   `timeline.evidence.json`.
+8. Summarize the artifact into a form an agent can actually use.
 
 ## Repo Layout
 
@@ -395,6 +398,7 @@ The formal compatibility notes live in
 - `storyboard.ocr.json`
 - `storyboard.transitions.json`
 - `storyboard.summary.json`
+- `timeline.evidence.json`
 
 Short version:
 
@@ -406,6 +410,9 @@ Short version:
   - coarse frame-to-frame transition inference
 - `storyboard.summary.json`
   - agent-facing interpretation, including `textDominance` and `ocrQuality`
+- `timeline.evidence.json`
+  - normalized timestamped evidence from `timestamps.json`, `events.json`,
+    and `subtitles.vtt`
 
 ## Hybrid Sampling
 
@@ -628,6 +635,8 @@ These are not hidden:
 - public-video intros and subtitles can dominate the evidence
 - app/view/capability extraction is still too weak across diverse real videos
 - benchmark success currently means "pipeline ran", not "video was deeply understood"
+- timeline evidence is normalized from existing artifacts, not yet fused into
+  a full semantic timeline summary
 
 If you are deciding whether to depend on this repo, this is the section
 to take seriously.

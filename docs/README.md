@@ -55,6 +55,7 @@ Typical outputs are:
 - `storyboard.ocr.json`
 - `storyboard.transitions.json`
 - `storyboard.summary.json`
+- `timeline.evidence.json`
 
 Those files are the contract operators should inspect when debugging a review.
 

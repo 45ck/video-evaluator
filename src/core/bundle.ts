@@ -3,6 +3,7 @@ import { dirname, join, resolve } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { VideoIntakeRequest } from "./schemas.js";
+import { buildTimelineEvidence, collectTimelineSourceArtifacts } from "./timeline-evidence.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -17,10 +18,13 @@ const REPORT_CANDIDATES = [
   "storyboard.ocr.json",
   "storyboard.summary.json",
   "storyboard.transitions.json",
+  "timeline.evidence.json",
+  "timestamps.json",
   "metadata.json",
   "environment.json",
   "events.json",
   "subtitles.vtt",
+  "subtitles.srt",
   "trace.zip",
 ] as const;
 
@@ -99,6 +103,8 @@ function deriveRecommendedFocus(
     }
   }
   if (artifacts["events.json"]) focus.add("timeline accuracy");
+  if (artifacts["timestamps.json"]) focus.add("audio timeline");
+  if (artifacts["timeline.evidence.json"]) focus.add("timeline evidence");
   if (artifacts["subtitles.vtt"]) focus.add("caption readability");
   if (artifacts["trace.zip"]) focus.add("failure trace");
   if (artifacts["storyboard.manifest.json"]) focus.add("storyboard evidence");
@@ -195,6 +201,11 @@ export async function intakeBundle(request: VideoIntakeRequest): Promise<BundleA
     for (const name of REPORT_CANDIDATES) {
       const path = join(rootDir, name);
       if (await pathExists(path)) artifacts[name] = path;
+    }
+    if (!artifacts["timeline.evidence.json"] && Object.keys(collectTimelineSourceArtifacts(artifacts)).length > 0) {
+      const timelinePath = join(rootDir, "timeline.evidence.json");
+      const manifest = await buildTimelineEvidence({ rootDir, artifacts, outputPath: timelinePath });
+      if (manifest) artifacts["timeline.evidence.json"] = timelinePath;
     }
   }
   if (videoPath) {

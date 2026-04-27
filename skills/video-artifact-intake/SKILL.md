@@ -46,6 +46,8 @@ The result is a normalized bundle map with:
 - `overallStatus`: `pass`, `warn`, `fail`, or `unknown`.
 - `recommendedFocus`: artifact-driven review areas.
 - `videoProbe`: duration, dimensions, codec, and size when `ffprobe` succeeds.
+- `timeline.evidence.json`: generated when `timestamps.json`, `events.json`,
+  or `subtitles.vtt` exists in the bundle.
 
 ## Sequencing Guidance
 
@@ -53,6 +55,9 @@ Run this before `review-bundle`, `package-review-prompt`, or
 `compare-video-runs` if you are unsure which directory or video should be
 reviewed. If storyboard artifacts are missing but a video is present, continue
 with `storyboard-extract`.
+
+When `timeline.evidence.json` is present, inspect it before making sequence,
+caption, transcript, or action-timing claims.
 
 ## Interpretation Notes
 
