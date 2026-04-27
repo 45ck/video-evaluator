@@ -1,13 +1,13 @@
 # Artifact Contracts
 
-This document describes the compatibility contract for storyboard artifacts emitted by
-the current video-evaluator tools. It is a consumer-facing contract, not a complete
+This document describes the compatibility contract for artifacts emitted by the
+current video-evaluator tools. It is a consumer-facing contract, not a complete
 debug dump specification.
 
 ## Compatibility Model
 
-Storyboard artifacts are JSON files with a top-level `schemaVersion` integer. Consumers
-must check the artifact file name and `schemaVersion` before relying on fields.
+Artifacts are JSON files with a top-level `schemaVersion` integer. Consumers must
+check the artifact file name and `schemaVersion` before relying on fields.
 
 Compatibility expectations:
 
@@ -321,3 +321,44 @@ Known non-contract fields:
 - Exact `text` spacing can change with source parser normalization.
 - Source-specific `metadata` keys are diagnostic and may change without a
   schema-version bump.
+
+## `video.shots.json`
+
+Schema version: `1`.
+
+Produced by `video-shots` from a local video. This artifact provides coarse
+scene-change segments and optional representative frame images for each segment.
+It is a visual part map, not a semantic edit decision list.
+
+Stable top-level fields:
+
+- `schemaVersion`: `1`.
+- `createdAt`: ISO-8601 timestamp string for artifact creation.
+- `videoPath`: source video path string.
+- `outputDir`: directory containing `video.shots.json` and optional frames.
+- `durationSeconds`: detected source video duration in seconds.
+- `sceneThreshold`: scene-change threshold used for detection.
+- `minShotDurationSeconds`: minimum segment duration used during boundary
+  filtering and merging.
+- `detectedBoundaryCount`: raw detected scene-boundary count before segment
+  filtering.
+- `shots`: ordered shot segment records.
+
+Stable shot fields:
+
+- `index`: one-based shot index.
+- `startSeconds`: segment start time in seconds.
+- `endSeconds`: segment end time in seconds.
+- `durationSeconds`: segment duration in seconds.
+- `representativeTimestampSeconds`: timestamp used for the representative frame.
+- `representativeFramePath`: path to the extracted representative frame when
+  frame extraction was enabled.
+- `boundaryStart`: `"video-start"` or `"scene-change"`.
+- `boundaryEnd`: `"scene-change"` or `"video-end"`.
+
+Known non-contract fields:
+
+- Exact shot boundaries can vary with codec behavior, `ffmpeg` scene detection,
+  source compression, and the chosen `sceneThreshold`.
+- Representative frames are diagnostics. Consumers should not assume they are
+  portable across machines.

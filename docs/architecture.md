@@ -34,6 +34,7 @@ The common review flow is:
 ```text
 video-intake / review-bundle
   -> storyboard-extract
+  -> video-shots
   -> storyboard-ocr
   -> storyboard-transitions
   -> storyboard-understand
@@ -46,6 +47,10 @@ folder. `review-bundle` is the review-oriented wrapper for existing bundles.
 `storyboard-extract` samples frames from a source video. Uniform sampling gives
 a simple timeline backbone. Hybrid sampling keeps that backbone and adds frames
 near likely visual changes.
+
+`video-shots` uses scene-change detection to produce a coarse list of shot
+segments plus optional representative frames. It is useful for dividing longer
+videos into inspectable parts before deeper OCR or semantic review.
 
 `storyboard-ocr` runs OCR over extracted frames. It writes raw OCR lines,
 filtered semantic lines, confidence data, bounding boxes, coarse screen regions,
@@ -83,6 +88,8 @@ The main artifacts are:
   quality and uncertainty fields.
 - `timeline.evidence.json`: timestamped transcript, caption, and action
   evidence normalized from producer artifacts.
+- `video.shots.json`: coarse scene-change segments and optional representative
+  frame paths.
 
 Downstream agents should cite or reason from these artifacts. If an artifact is
 missing, low-signal, or internally inconsistent, the caller should treat the

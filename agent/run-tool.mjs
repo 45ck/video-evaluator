@@ -6,6 +6,7 @@ import {
   ReviewBundleRequestSchema,
   SkillCatalogRequestSchema,
   StoryboardExtractRequestSchema,
+  VideoShotsRequestSchema,
   StoryboardOcrRequestSchema,
   StoryboardTransitionsRequestSchema,
   StoryboardUnderstandRequestSchema,
@@ -18,6 +19,7 @@ import {
   reviewBundle,
   runHarnessTool,
   runStoryboardExtract,
+  runVideoShots,
   runStoryboardOcr,
   runStoryboardTransitions,
   runStoryboardUnderstand,
@@ -56,6 +58,11 @@ const registry = {
     tool: "video-evaluator/storyboard-extract",
     inputSchema: StoryboardExtractRequestSchema,
     handler: async ({ input }) => runStoryboardExtract(input),
+  },
+  "video-shots": {
+    tool: "video-evaluator/video-shots",
+    inputSchema: VideoShotsRequestSchema,
+    handler: async ({ input }) => runVideoShots(input),
   },
   "storyboard-ocr": {
     tool: "video-evaluator/storyboard-ocr",

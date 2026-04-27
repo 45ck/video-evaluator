@@ -4,6 +4,7 @@ export {
   VideoIntakeRequestSchema,
   ReviewBundleRequestSchema,
   StoryboardExtractRequestSchema,
+  VideoShotsRequestSchema,
   StoryboardOcrRequestSchema,
   StoryboardUnderstandRequestSchema,
   StoryboardTransitionsRequestSchema,
@@ -13,6 +14,7 @@ export {
 export { intakeBundle, copySkillPack } from "./core/bundle.js";
 export { diffPngBuffers, diffPngFiles } from "./core/image-diff.js";
 export { buildTimelineEvidence, collectTimelineSourceArtifacts } from "./core/timeline-evidence.js";
+export { buildShotSegments, extractVideoShots } from "./core/video-shots.js";
 export { extractStoryboard } from "./core/storyboard.js";
 export { ocrStoryboard } from "./core/storyboard-ocr.js";
 export {
@@ -24,6 +26,7 @@ export { runHarnessTool } from "./harness/json-stdio.js";
 export { listSkillCatalog } from "./harness/skill-catalog.js";
 export { installSkillPack } from "./harness/install-skill-pack.js";
 export { runVideoIntake } from "./harness/video-intake.js";
+export { runVideoShots } from "./harness/video-shots.js";
 export { runStoryboardExtract } from "./harness/storyboard-extract.js";
 export { runStoryboardOcr } from "./harness/storyboard-ocr.js";
 export { runStoryboardTransitions } from "./harness/storyboard-transitions.js";

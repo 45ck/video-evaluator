@@ -48,6 +48,8 @@ The result is a normalized bundle map with:
 - `videoProbe`: duration, dimensions, codec, and size when `ffprobe` succeeds.
 - `timeline.evidence.json`: generated when `timestamps.json`, `events.json`,
   or `subtitles.vtt` exists in the bundle.
+- `video.shots.json`: discovered when shot extraction has already been run for
+  the bundle.
 
 ## Sequencing Guidance
 
@@ -57,7 +59,8 @@ reviewed. If storyboard artifacts are missing but a video is present, continue
 with `storyboard-extract`.
 
 When `timeline.evidence.json` is present, inspect it before making sequence,
-caption, transcript, or action-timing claims.
+caption, transcript, or action-timing claims. When `video.shots.json` is
+present, use it as a coarse part map before deep visual review.
 
 ## Interpretation Notes
 

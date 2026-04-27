@@ -4,6 +4,8 @@ All notable changes to this repo will be documented here.
 
 ## Unreleased
 
+- Added `video.shots.json` generation with scene-change segments and optional
+  representative frames.
 - Added `timeline.evidence.json` generation from `timestamps.json`,
   `events.json`, and `subtitles.vtt` during bundle intake.
 - Added timeline evidence previews to packaged review prompts.

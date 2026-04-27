@@ -78,6 +78,14 @@ function buildPrompt(input: PackageReviewPromptRequest, bundle: Awaited<ReturnTy
     }
   }
 
+  const shotPreview = (bundle as typeof bundle & { shotPreview?: string[] }).shotPreview;
+  if (shotPreview && shotPreview.length > 0) {
+    lines.push("- Shot structure preview:");
+    for (const line of shotPreview) {
+      lines.push(`  - ${line}`);
+    }
+  }
+
   lines.push("- Review focus:");
   for (const focus of [...bundle.recommendedFocus, ...input.focus]) {
     lines.push(`  - ${focus}`);
@@ -103,18 +111,21 @@ export async function packageReviewPrompt(input: PackageReviewPromptRequest) {
   const ocrPreview = await loadOcrPreview(bundle.artifacts["storyboard.ocr.json"]);
   const summaryPreview = await loadSummaryPreview(bundle.artifacts["storyboard.summary.json"]);
   const timelinePreview = await loadTimelinePreview(bundle.artifacts["timeline.evidence.json"]);
+  const shotPreview = await loadShotPreview(bundle.artifacts["video.shots.json"]);
   return {
     bundle: {
       ...bundle,
       ...(ocrPreview.length > 0 ? { ocrPreview } : {}),
       ...(summaryPreview ? { summaryPreview } : {}),
       ...(timelinePreview.length > 0 ? { timelinePreview } : {}),
+      ...(shotPreview.length > 0 ? { shotPreview } : {}),
     },
     prompt: buildPrompt(normalized, {
       ...bundle,
       ...(ocrPreview.length > 0 ? { ocrPreview } : {}),
       ...(summaryPreview ? { summaryPreview } : {}),
       ...(timelinePreview.length > 0 ? { timelinePreview } : {}),
+      ...(shotPreview.length > 0 ? { shotPreview } : {}),
     }),
   };
 }
@@ -187,6 +198,32 @@ async function loadTimelinePreview(timelinePath: string | undefined): Promise<st
         const end = typeof item.endSeconds === "number" ? item.endSeconds.toFixed(2) : "?";
         return `${item.kind ?? "evidence"} ${start}-${end}s: ${label}`;
       });
+  } catch {
+    return [];
+  }
+}
+
+async function loadShotPreview(shotsPath: string | undefined): Promise<string[]> {
+  if (!shotsPath) return [];
+  try {
+    const raw = await readFile(shotsPath, "utf8");
+    const parsed = JSON.parse(raw) as {
+      shots?: Array<{
+        index?: number;
+        startSeconds?: number;
+        endSeconds?: number;
+        durationSeconds?: number;
+        representativeFramePath?: string;
+      }>;
+    };
+    return (parsed.shots ?? []).slice(0, 8).map((shot, index) => {
+      const shotIndex = typeof shot.index === "number" ? shot.index : index + 1;
+      const start = typeof shot.startSeconds === "number" ? shot.startSeconds.toFixed(2) : "?";
+      const end = typeof shot.endSeconds === "number" ? shot.endSeconds.toFixed(2) : "?";
+      const duration = typeof shot.durationSeconds === "number" ? `${shot.durationSeconds.toFixed(2)}s` : "unknown";
+      const frame = shot.representativeFramePath ? ` frame=${shot.representativeFramePath}` : "";
+      return `shot ${shotIndex} ${start}-${end}s (${duration})${frame}`;
+    });
   } catch {
     return [];
   }

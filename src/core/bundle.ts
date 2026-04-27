@@ -14,6 +14,7 @@ const REPORT_CANDIDATES = [
   "validate.json",
   "score.json",
   "publish.json",
+  "video.shots.json",
   "storyboard.manifest.json",
   "storyboard.ocr.json",
   "storyboard.summary.json",
@@ -105,6 +106,7 @@ function deriveRecommendedFocus(
   if (artifacts["events.json"]) focus.add("timeline accuracy");
   if (artifacts["timestamps.json"]) focus.add("audio timeline");
   if (artifacts["timeline.evidence.json"]) focus.add("timeline evidence");
+  if (artifacts["video.shots.json"]) focus.add("video shot structure");
   if (artifacts["subtitles.vtt"]) focus.add("caption readability");
   if (artifacts["trace.zip"]) focus.add("failure trace");
   if (artifacts["storyboard.manifest.json"]) focus.add("storyboard evidence");
@@ -145,6 +147,23 @@ async function findVideoCandidate(rootDir: string): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+async function findArtifactVideoPath(
+  rootDir: string,
+  artifacts: Record<string, string>,
+): Promise<string | null> {
+  for (const name of ["video.shots.json", "storyboard.manifest.json", "storyboard.ocr.json", "storyboard.summary.json"]) {
+    const path = artifacts[name];
+    if (!path) continue;
+    const data = await maybeReadJson(path);
+    if (!data || typeof data !== "object") continue;
+    const artifactVideoPath = (data as { videoPath?: unknown }).videoPath;
+    if (typeof artifactVideoPath !== "string" || !artifactVideoPath) continue;
+    const resolved = resolve(rootDir, artifactVideoPath);
+    if (await pathExists(resolved)) return resolved;
+  }
+  return null;
 }
 
 async function probeVideo(path: string): Promise<BundleArtifactMap["videoProbe"] | undefined> {
@@ -189,9 +208,6 @@ export async function intakeBundle(request: VideoIntakeRequest): Promise<BundleA
   }
 
   let videoPath = request.videoPath ? resolve(request.videoPath) : null;
-  if (!videoPath && rootDir) {
-    videoPath = await findVideoCandidate(rootDir);
-  }
   if (!rootDir && videoPath) {
     rootDir = dirname(videoPath);
   }
@@ -206,6 +222,9 @@ export async function intakeBundle(request: VideoIntakeRequest): Promise<BundleA
       const timelinePath = join(rootDir, "timeline.evidence.json");
       const manifest = await buildTimelineEvidence({ rootDir, artifacts, outputPath: timelinePath });
       if (manifest) artifacts["timeline.evidence.json"] = timelinePath;
+    }
+    if (!videoPath) {
+      videoPath = (await findArtifactVideoPath(rootDir, artifacts)) ?? (await findVideoCandidate(rootDir));
     }
   }
   if (videoPath) {

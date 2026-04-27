@@ -36,6 +36,8 @@ The result contains a grounded prompt assembled from discovered artifacts,
 recommended focus areas, and optional spec/focus inputs. It is designed to be
 handed to Codex or Claude Code for the next review step. When
 `timeline.evidence.json` exists, the prompt includes a short timeline preview.
+When `video.shots.json` exists, the prompt includes a short shot-structure
+preview.
 
 ## Sequencing Guidance
 
@@ -52,6 +54,9 @@ should preserve uncertainty rather than invent missing evidence.
 
 Use timeline evidence to ground ordering, caption, transcript, and action claims
 before relying on sparse storyboard frames.
+
+Use shot evidence to choose which video segments or representative frames need
+closer inspection. Do not treat shot boundaries as semantic proof by themselves.
 
 ## Abstention Rules
 

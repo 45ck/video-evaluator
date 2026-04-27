@@ -27,6 +27,14 @@ export const StoryboardExtractRequestSchema = z.object({
   changeThreshold: z.number().min(0.01).max(1).default(0.08),
 });
 
+export const VideoShotsRequestSchema = z.object({
+  videoPath: z.string().min(1),
+  outputDir: z.string().min(1).optional(),
+  sceneThreshold: z.number().min(0.01).max(1).default(0.08),
+  minShotDurationSeconds: z.number().min(0.1).max(30).default(0.5),
+  extractRepresentativeFrames: z.boolean().default(true),
+});
+
 export const StoryboardOcrRequestSchema = z.object({
   storyboardDir: z.string().min(1).optional(),
   manifestPath: z.string().min(1).optional(),
@@ -65,6 +73,7 @@ export type InstallSkillPackRequest = z.infer<typeof InstallSkillPackRequestSche
 export type VideoIntakeRequest = z.infer<typeof VideoIntakeRequestSchema>;
 export type ReviewBundleRequest = z.infer<typeof ReviewBundleRequestSchema>;
 export type StoryboardExtractRequest = z.infer<typeof StoryboardExtractRequestSchema>;
+export type VideoShotsRequest = z.infer<typeof VideoShotsRequestSchema>;
 export type StoryboardOcrRequest = z.infer<typeof StoryboardOcrRequestSchema>;
 export type StoryboardUnderstandRequest = z.infer<typeof StoryboardUnderstandRequestSchema>;
 export type StoryboardTransitionsRequest = z.infer<typeof StoryboardTransitionsRequestSchema>;

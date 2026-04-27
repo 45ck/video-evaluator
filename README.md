@@ -24,7 +24,7 @@ before other repos depend on it.
   timeline reconstruction
 - Output shape: `storyboard.manifest.json`, `storyboard.ocr.json`,
   `storyboard.transitions.json`, `storyboard.summary.json`,
-  `timeline.evidence.json`
+  `timeline.evidence.json`, `video.shots.json`
 - Maturity: experimental but benchmarked, with explicit low-signal
   reporting instead of pretending weak OCR is semantic proof
 
@@ -59,6 +59,7 @@ What it does reasonably well today:
 - turns local videos into structured storyboard artifacts
 - works well enough for first-pass review of UI-heavy product videos
 - extracts OCR, basic layout regions, coarse transition structure, and filtered UI evidence
+- extracts coarse shot boundaries and representative frames for longer videos
 - packages grounded prompts so agents can review runs from real artifacts
 - gives multiple repos a common evidence format
 
@@ -93,7 +94,8 @@ In plain English:
    dialog changes, or scroll changes.
 7. Normalize any existing timestamps, subtitles, or event logs into
    `timeline.evidence.json`.
-8. Summarize the artifact into a form an agent can actually use.
+8. Optionally extract coarse shot boundaries into `video.shots.json`.
+9. Summarize the artifact into a form an agent can actually use.
 
 ## Repo Layout
 
@@ -146,7 +148,7 @@ tests/
 - [Support policy](./SUPPORT.md)
 - [Changelog](./CHANGELOG.md)
 - [CI workflow](./.github/workflows/ci.yml)
-- [Latest release](https://github.com/45ck/video-evaluator/releases/tag/v0.1.0)
+- [Latest release](https://github.com/45ck/video-evaluator/releases/tag/v0.1.1)
 
 ## Quick Start
 
@@ -267,6 +269,29 @@ cat <<'JSON' | node --import tsx scripts/harness/storyboard-extract.ts
   "samplingMode": "hybrid",
   "changeThreshold": 0.08,
   "format": "jpg"
+}
+JSON
+```
+
+### `video-shots`
+
+Extracts coarse scene-change segments from a local video and can write one
+representative frame per segment.
+
+Use when:
+
+- a longer video needs a quick part map before deeper OCR review
+- you want stable timestamps for "what changed where" without pretending to
+  reconstruct every action
+
+Example:
+
+```bash
+cat <<'JSON' | node --import tsx scripts/harness/video-shots.ts
+{
+  "videoPath": "/path/to/video.mp4",
+  "sceneThreshold": 0.08,
+  "extractRepresentativeFrames": true
 }
 JSON
 ```
@@ -399,6 +424,7 @@ The formal compatibility notes live in
 - `storyboard.transitions.json`
 - `storyboard.summary.json`
 - `timeline.evidence.json`
+- `video.shots.json`
 
 Short version:
 
@@ -413,6 +439,8 @@ Short version:
 - `timeline.evidence.json`
   - normalized timestamped evidence from `timestamps.json`, `events.json`,
     and `subtitles.vtt`
+- `video.shots.json`
+  - coarse scene-change segments and optional representative frame paths
 
 ## Hybrid Sampling
 
@@ -550,6 +578,7 @@ Current skill set:
 - `skill-catalog`
 - `install-skill-pack`
 - `video-artifact-intake`
+- `video-shots`
 - `review-bundle`
 - `storyboard-extract`
 - `storyboard-ocr`
@@ -573,6 +602,7 @@ Notable exports:
 
 - request schemas
 - `extractStoryboard`
+- `extractVideoShots`
 - `ocrStoryboard`
 - `inferStoryboardTransitions`
 - `classifyStoryboardTransition`
@@ -626,6 +656,7 @@ Then inspect:
 - `storyboard.ocr.json`
 - `storyboard.transitions.json`
 - `storyboard.summary.json`
+- `video.shots.json`
 
 ## Known Weak Spots
 
@@ -637,6 +668,8 @@ These are not hidden:
 - benchmark success currently means "pipeline ran", not "video was deeply understood"
 - timeline evidence is normalized from existing artifacts, not yet fused into
   a full semantic timeline summary
+- shot extraction is coarse scene segmentation, not a semantic decompile of
+  source footage
 
 If you are deciding whether to depend on this repo, this is the section
 to take seriously.
@@ -651,6 +684,7 @@ High-value next steps:
 - better subtitle / narration filtering
 - richer local action-sequence reconstruction
 - denser benchmark coverage with stronger high-fit product videos
+- fused shot, timeline, OCR, and transition evidence
 
 Longer-term direction:
 

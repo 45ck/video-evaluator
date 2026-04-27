@@ -15,6 +15,8 @@ evidence quality before making broader claims.
 - Ships as a standalone skill pack for use across repos.
 - Normalizes producer timestamps, captions, and action logs into
   `timeline.evidence.json`.
+- Extracts coarse shot segments and representative frames into
+  `video.shots.json`.
 
 ## Known Weak Spots
 
@@ -31,6 +33,8 @@ evidence quality before making broader claims.
   footage remain poor fits.
 - Timeline evidence is not yet fused with storyboard/OCR evidence into a
   higher-level semantic timeline.
+- Shot evidence is scene-boundary based. It helps split videos into parts, but
+  it does not identify intent, sources, or exact edits by itself.
 
 ## Near-Term Priorities
 
@@ -52,8 +56,8 @@ evidence quality before making broader claims.
    availability.
 5. Improve installed-pack ergonomics and diagnostics for missing tools such as
    `ffmpeg`, `ffprobe`, or OCR assets.
-6. Add `video.shots.json` and `visual.probes.json` so visual evidence can join
-   the timeline evidence spine.
+6. Add `visual.probes.json` and fuse shot, OCR, transition, and timeline
+   evidence into a shared semantic timeline.
 
 ## Non-Goals
 
