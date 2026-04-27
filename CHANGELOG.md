@@ -4,6 +4,8 @@ All notable changes to this repo will be documented here.
 
 ## Unreleased
 
+- Added operator workflow and tool reference docs so the expanded pipeline is
+  easier to navigate.
 - Added `segment-storyboard` extraction so each shot can get OCR-ready
   storyboard coverage.
 - Added `segment.evidence.json` fusion across shots, storyboard frames, OCR,

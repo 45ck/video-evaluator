@@ -82,10 +82,13 @@ The pipeline is:
 
 1. `video-intake` or `review-bundle`
 2. `storyboard-extract`
-3. `storyboard-ocr`
-4. `storyboard-transitions`
-5. `storyboard-understand`
-6. `package-review-prompt` or `compare-bundles`
+3. optionally `video-shots`
+4. optionally `segment-storyboard`
+5. `storyboard-ocr`
+6. `storyboard-transitions`
+7. optionally `segment-evidence`
+8. `storyboard-understand`
+9. `package-review-prompt` or `compare-bundles`
 
 In plain English:
 
@@ -129,6 +132,8 @@ tests/
 
 - [Documentation index](./docs/README.md)
 - [Architecture](./docs/architecture.md)
+- [Tool reference](./docs/tool-reference.md)
+- [Operator workflows](./docs/operator-workflows.md)
 - [Artifact contracts](./docs/artifact-contracts.md)
 - [YouTube evaluation](./docs/youtube-evaluation.md)
 - [Roadmap](./docs/roadmap.md)
@@ -674,7 +679,7 @@ This means you can use the repo:
 
 ## Example Workflow
 
-If you want the smallest realistic end-to-end local example:
+If you want the smallest realistic storyboard review:
 
 ```bash
 npm install
@@ -713,7 +718,50 @@ Then inspect:
 - `storyboard.ocr.json`
 - `storyboard.transitions.json`
 - `storyboard.summary.json`
+
+If the video has many cuts or the first pass misses too many segments, run the
+shot-aware path:
+
+```bash
+cat <<'JSON' | node --import tsx scripts/harness/video-shots.ts
+{
+  "videoPath": "/tmp/demo.mp4",
+  "outputDir": "/tmp/video-evaluator-storyboard"
+}
+JSON
+
+cat <<'JSON' | node --import tsx scripts/harness/segment-storyboard.ts
+{
+  "outputDir": "/tmp/video-evaluator-storyboard",
+  "framesPerSegment": 1
+}
+JSON
+
+cat <<'JSON' | node --import tsx scripts/harness/storyboard-ocr.ts
+{
+  "storyboardDir": "/tmp/video-evaluator-storyboard/segment-storyboard"
+}
+JSON
+
+cat <<'JSON' | node --import tsx scripts/harness/storyboard-transitions.ts
+{
+  "storyboardDir": "/tmp/video-evaluator-storyboard/segment-storyboard"
+}
+JSON
+
+cat <<'JSON' | node --import tsx scripts/harness/segment-evidence.ts
+{
+  "outputDir": "/tmp/video-evaluator-storyboard"
+}
+JSON
+```
+
+Then inspect:
+
 - `video.shots.json`
+- `segment-storyboard/storyboard.manifest.json`
+- `segment-storyboard/storyboard.ocr.json`
+- `segment-storyboard/storyboard.transitions.json`
 - `segment.evidence.json`
 
 ## Known Weak Spots

@@ -15,6 +15,10 @@ The short version:
 
 - [Architecture](./architecture.md): how requests move through the runtime,
   harnesses, skills, and artifact pipeline.
+- [Tool reference](./tool-reference.md): which runner produces which artifact
+  and the common tool sequences.
+- [Operator workflows](./operator-workflows.md): recommended paths for fast
+  review, shot-aware review, existing bundles, comparisons, and benchmarks.
 - [Artifact contracts](./artifact-contracts.md): stable fields, compatibility
   expectations, and non-contract diagnostics for storyboard artifacts.
 - [Roadmap](./roadmap.md): what remains weak, what should improve next, and
@@ -45,7 +49,7 @@ The usual local path is:
 2. Extract frames with `storyboard-extract`.
 3. Optionally extract shot segments with `video-shots`.
 4. Optionally extract per-shot frames with `segment-storyboard`.
-5. OCR frames with `storyboard-ocr`.
+5. OCR the chosen storyboard directory with `storyboard-ocr`.
 6. Infer frame-to-frame changes with `storyboard-transitions`.
 7. Optionally fuse evidence by shot with `segment-evidence`.
 8. Summarize evidence with `storyboard-understand`.
