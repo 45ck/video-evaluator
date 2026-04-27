@@ -271,6 +271,13 @@ export async function copySkillPack(
     await copyDirRecursive(docsSource, join(targetRoot, "docs"), copied);
   }
 
+  for (const repoDir of ["assets", "benchmarks"]) {
+    const sourcePath = join(repoRoot, repoDir);
+    if (await pathExists(sourcePath)) {
+      await copyDirRecursive(sourcePath, join(targetRoot, repoDir), copied);
+    }
+  }
+
   for (const repoFile of ["package.json", "package-lock.json", "README.md", "SUPPORT.md", "LICENSE", "eng.traineddata"]) {
     const sourcePath = join(repoRoot, repoFile);
     if (!(await pathExists(sourcePath))) continue;

@@ -1,6 +1,6 @@
 {
   "name": "@45ck/video-evaluator",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Shared video evaluation and understanding skill pack for coding-agent workflows",
   "license": "MIT",
   "type": "module",
@@ -14,6 +14,8 @@
     "agent/**",
     "skills/**",
     "docs/**",
+    "assets/**",
+    "benchmarks/**",
     "eng.traineddata",
     "README.md",
     "SUPPORT.md",
