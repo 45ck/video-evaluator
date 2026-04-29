@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "video_evaluator",
+  "project_id": "181e0748-3ad4-4ad4-9427-1f3978d8e6e3"
+}
