@@ -35,6 +35,7 @@
     "storyboard-ocr": "node --import tsx scripts/harness/storyboard-ocr.ts",
     "storyboard-understand": "node --import tsx scripts/harness/storyboard-understand.ts",
     "storyboard-transitions": "node --import tsx scripts/harness/storyboard-transitions.ts",
+    "layout-safety-review": "node --import tsx scripts/harness/layout-safety-review.ts",
     "review-bundle": "node --import tsx scripts/harness/review-bundle.ts",
     "compare-bundles": "node --import tsx scripts/harness/compare-bundles.ts",
     "package-review-prompt": "node --import tsx scripts/harness/package-review-prompt.ts",

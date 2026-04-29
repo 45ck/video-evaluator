@@ -10,21 +10,29 @@ export {
   StoryboardOcrRequestSchema,
   StoryboardUnderstandRequestSchema,
   StoryboardTransitionsRequestSchema,
+  LayoutSafetyReviewRequestSchema,
   CompareBundlesRequestSchema,
   PackageReviewPromptRequestSchema,
 } from "./core/schemas.js";
 export { intakeBundle, copySkillPack } from "./core/bundle.js";
 export { diffPngBuffers, diffPngFiles } from "./core/image-diff.js";
-export { buildTimelineEvidence, collectTimelineSourceArtifacts } from "./core/timeline-evidence.js";
+export {
+  buildTimelineEvidence,
+  collectTimelineSourceArtifacts,
+} from "./core/timeline-evidence.js";
 export { buildShotSegments, extractVideoShots } from "./core/video-shots.js";
 export { buildSegmentEvidence } from "./core/segment-evidence.js";
-export { extractSegmentStoryboard, planSegmentStoryboardFrames } from "./core/segment-storyboard.js";
+export {
+  extractSegmentStoryboard,
+  planSegmentStoryboardFrames,
+} from "./core/segment-storyboard.js";
 export { extractStoryboard } from "./core/storyboard.js";
 export { ocrStoryboard } from "./core/storyboard-ocr.js";
 export {
   inferStoryboardTransitions,
   classifyStoryboardTransition,
 } from "./core/storyboard-transitions.js";
+export { reviewLayoutSafety } from "./core/layout-safety-review.js";
 export { understandStoryboard } from "./core/storyboard-understand.js";
 export { runHarnessTool } from "./harness/json-stdio.js";
 export { listSkillCatalog } from "./harness/skill-catalog.js";
@@ -37,6 +45,7 @@ export { runStoryboardExtract } from "./harness/storyboard-extract.js";
 export { runStoryboardOcr } from "./harness/storyboard-ocr.js";
 export { runStoryboardTransitions } from "./harness/storyboard-transitions.js";
 export { runStoryboardUnderstand } from "./harness/storyboard-understand.js";
+export { runLayoutSafetyReview } from "./harness/layout-safety-review.js";
 export { reviewBundle } from "./harness/review-bundle.js";
 export { compareBundles } from "./harness/compare-bundles.js";
 export { packageReviewPrompt } from "./harness/package-review-prompt.js";

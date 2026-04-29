@@ -46,27 +46,45 @@ export const SegmentStoryboardRequestSchema = VideoIntakeRequestSchema.extend({
   format: z.enum(["jpg", "png"]).default("jpg"),
 });
 
-export const StoryboardOcrRequestSchema = z.object({
-  storyboardDir: z.string().min(1).optional(),
-  manifestPath: z.string().min(1).optional(),
-  minConfidence: z.number().min(0).max(100).default(45),
-}).refine((input) => Boolean(input.storyboardDir || input.manifestPath), {
-  message: "storyboardDir or manifestPath is required",
-});
+export const StoryboardOcrRequestSchema = z
+  .object({
+    storyboardDir: z.string().min(1).optional(),
+    manifestPath: z.string().min(1).optional(),
+    minConfidence: z.number().min(0).max(100).default(45),
+  })
+  .refine((input) => Boolean(input.storyboardDir || input.manifestPath), {
+    message: "storyboardDir or manifestPath is required",
+  });
 
-export const StoryboardUnderstandRequestSchema = z.object({
-  storyboardDir: z.string().min(1).optional(),
-  ocrPath: z.string().min(1).optional(),
-}).refine((input) => Boolean(input.storyboardDir || input.ocrPath), {
-  message: "storyboardDir or ocrPath is required",
-});
+export const StoryboardUnderstandRequestSchema = z
+  .object({
+    storyboardDir: z.string().min(1).optional(),
+    ocrPath: z.string().min(1).optional(),
+  })
+  .refine((input) => Boolean(input.storyboardDir || input.ocrPath), {
+    message: "storyboardDir or ocrPath is required",
+  });
 
-export const StoryboardTransitionsRequestSchema = z.object({
-  storyboardDir: z.string().min(1).optional(),
-  ocrPath: z.string().min(1).optional(),
-  threshold: z.number().min(0).max(1).default(0.02),
-}).refine((input) => Boolean(input.storyboardDir || input.ocrPath), {
-  message: "storyboardDir or ocrPath is required",
+export const StoryboardTransitionsRequestSchema = z
+  .object({
+    storyboardDir: z.string().min(1).optional(),
+    ocrPath: z.string().min(1).optional(),
+    threshold: z.number().min(0).max(1).default(0.02),
+  })
+  .refine((input) => Boolean(input.storyboardDir || input.ocrPath), {
+    message: "storyboardDir or ocrPath is required",
+  });
+
+export const LayoutSafetyReviewRequestSchema = z.object({
+  videoPath: z.string().min(1),
+  outputDir: z.string().min(1).optional(),
+  layoutPath: z.string().min(1).optional(),
+  frameCount: z.number().int().min(1).max(24).default(8),
+  samplingMode: z.enum(["uniform", "hybrid"]).default("hybrid"),
+  runOcr: z.boolean().default(true),
+  minOcrConfidence: z.number().min(0).max(100).default(45),
+  maxPairOverlapRatio: z.number().min(0).max(1).default(0.04),
+  maxCaptionZoneOverlapRatio: z.number().min(0).max(1).default(0.02),
 });
 
 export const CompareBundlesRequestSchema = z.object({
@@ -74,21 +92,40 @@ export const CompareBundlesRequestSchema = z.object({
   right: VideoIntakeRequestSchema,
 });
 
-export const PackageReviewPromptRequestSchema = VideoIntakeRequestSchema.extend({
-  specPath: z.string().min(1).optional(),
-  focus: z.array(z.string()).default([]),
-});
+export const PackageReviewPromptRequestSchema = VideoIntakeRequestSchema.extend(
+  {
+    specPath: z.string().min(1).optional(),
+    focus: z.array(z.string()).default([]),
+  },
+);
 
 export type SkillCatalogRequest = z.infer<typeof SkillCatalogRequestSchema>;
-export type InstallSkillPackRequest = z.infer<typeof InstallSkillPackRequestSchema>;
+export type InstallSkillPackRequest = z.infer<
+  typeof InstallSkillPackRequestSchema
+>;
 export type VideoIntakeRequest = z.infer<typeof VideoIntakeRequestSchema>;
 export type ReviewBundleRequest = z.infer<typeof ReviewBundleRequestSchema>;
-export type StoryboardExtractRequest = z.infer<typeof StoryboardExtractRequestSchema>;
+export type StoryboardExtractRequest = z.infer<
+  typeof StoryboardExtractRequestSchema
+>;
 export type VideoShotsRequest = z.infer<typeof VideoShotsRequestSchema>;
-export type SegmentEvidenceRequest = z.infer<typeof SegmentEvidenceRequestSchema>;
-export type SegmentStoryboardRequest = z.infer<typeof SegmentStoryboardRequestSchema>;
+export type SegmentEvidenceRequest = z.infer<
+  typeof SegmentEvidenceRequestSchema
+>;
+export type SegmentStoryboardRequest = z.infer<
+  typeof SegmentStoryboardRequestSchema
+>;
 export type StoryboardOcrRequest = z.infer<typeof StoryboardOcrRequestSchema>;
-export type StoryboardUnderstandRequest = z.infer<typeof StoryboardUnderstandRequestSchema>;
-export type StoryboardTransitionsRequest = z.infer<typeof StoryboardTransitionsRequestSchema>;
+export type StoryboardUnderstandRequest = z.infer<
+  typeof StoryboardUnderstandRequestSchema
+>;
+export type StoryboardTransitionsRequest = z.infer<
+  typeof StoryboardTransitionsRequestSchema
+>;
+export type LayoutSafetyReviewRequest = z.infer<
+  typeof LayoutSafetyReviewRequestSchema
+>;
 export type CompareBundlesRequest = z.infer<typeof CompareBundlesRequestSchema>;
-export type PackageReviewPromptRequest = z.infer<typeof PackageReviewPromptRequestSchema>;
+export type PackageReviewPromptRequest = z.infer<
+  typeof PackageReviewPromptRequestSchema
+>;

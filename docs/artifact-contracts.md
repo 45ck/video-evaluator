@@ -37,6 +37,55 @@ Several artifacts repeat frame sampling fields. Their stable values are:
 Consumers should treat scores, confidence values, OCR text, inferred labels, and
 diagnostic notes as model- or heuristic-derived evidence, not as ground truth.
 
+## `layout-annotations.v1.json`
+
+Schema version: string literal `layout-annotations.v1`.
+
+Consumed by `layout-safety-review`. This is an optional producer-authored sidecar
+for generated videos where the renderer knows the intended graphic boxes. It lets
+review tools catch card, caption, diagram, and UI collisions without trying to
+infer every visual layer from pixels.
+
+Stable top-level fields:
+
+- `schemaVersion`: `"layout-annotations.v1"`.
+- `videoWidth`: source render width in pixels.
+- `videoHeight`: source render height in pixels.
+- `safeZones`: named boxes, usually including `caption`.
+- `frames`: sampled layout frames with `timeSeconds` and `elements`.
+
+Stable element fields:
+
+- `id`: stable element identifier.
+- `role`: element role such as `primary`, `support`, `visual`, `progress`,
+  `navigation`, `caption`, `container`, `background`, or `decorative`.
+- `box`: `{ x0, y0, x1, y1 }` in pixels or normalized coordinates.
+- `allowOverlapWith`: optional list of element ids that may overlap.
+- `ignoreOverlap`: optional boolean for containers or purely diagnostic elements.
+
+## `layout-safety.report.json`
+
+Schema version: string literal `layout-safety-report.v1`.
+
+Produced by `layout-safety-review`.
+
+Stable top-level fields:
+
+- `schemaVersion`: `"layout-safety-report.v1"`.
+- `createdAt`: ISO-8601 timestamp string for artifact creation.
+- `videoPath`: reviewed video path.
+- `outputDir`: report output directory.
+- `layoutPath`: layout sidecar path when supplied.
+- `storyboardManifestPath`: sampled storyboard manifest path.
+- `ocrPath`: OCR artifact path when OCR review ran.
+- `sampledFrameCount`: number of visual frames sampled.
+- `checkedLayoutFrameCount`: number of declared layout frames checked.
+- `issues`: ordered review issues.
+- `metrics.maxDeclaredOverlapRatio`: largest disallowed declared overlap.
+- `metrics.maxCaptionZoneOverlapRatio`: largest non-caption collision with the
+  caption safe zone.
+- `metrics.ocrTextOverlapCount`: count of OCR text-box overlap warnings.
+
 ## `storyboard.manifest.json`
 
 Schema version: `1`.

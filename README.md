@@ -43,6 +43,8 @@ This repo is for:
 - generating summary artifacts from OCR evidence
 - fusing shot, storyboard, OCR, transition, and timeline evidence by segment
 - extracting per-shot storyboard frames when global sampling leaves gaps
+- detecting declared layout overlaps and caption safe-zone collisions
+  for generated video systems that emit layout annotations
 - packaging review prompts for agent use
 - comparing two video bundles or runs
 - materializing an installable skill pack for Codex or Claude Code
@@ -62,6 +64,8 @@ What it does reasonably well today:
 - works well enough for first-pass review of UI-heavy product videos
 - extracts OCR, basic layout regions, coarse transition structure, and filtered UI evidence
 - extracts coarse shot boundaries and representative frames for longer videos
+- checks `layout-annotations.v1` sidecars for overlapping cards,
+  diagrams, captions, and UI layers
 - fuses available evidence into per-segment review maps
 - can produce shot-aware storyboard frames so each segment gets coverage
 - packages grounded prompts so agents can review runs from real artifacts
@@ -103,8 +107,10 @@ In plain English:
    `timeline.evidence.json`.
 8. Optionally extract coarse shot boundaries into `video.shots.json`.
 9. Optionally extract one or more frames per shot with `segment-storyboard`.
-10. Optionally fuse per-shot evidence into `segment.evidence.json`.
-11. Summarize the artifact into a form an agent can actually use.
+10. Optionally run `layout-safety-review` when a generated video ships
+    layout annotations.
+11. Optionally fuse per-shot evidence into `segment.evidence.json`.
+12. Summarize the artifact into a form an agent can actually use.
 
 ## Repo Layout
 
