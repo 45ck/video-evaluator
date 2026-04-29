@@ -3,6 +3,10 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
+import {
+  summarizeTechnicalSignals,
+  type TechnicalSignalSummary,
+} from "../signals/index.js";
 import type { VideoTechnicalReviewRequest } from "./schemas.js";
 
 const execFileAsync = promisify(execFile);
@@ -131,6 +135,7 @@ export interface VideoTechnicalReport {
     longestLowMotionRunSeconds: number;
     captionBandSparseCoverage: number;
   };
+  signals: TechnicalSignalSummary;
   thresholds: VideoTechnicalThresholds;
 }
 
@@ -365,16 +370,23 @@ export function buildVideoTechnicalReport(
 
     if (frame.blackPixelRatio >= thresholds.blackFramePixelRatio) {
       issues.push(
-        issue("error", "black-frame", "Sampled frame is mostly black.", frame.timestampSeconds, {
-          frameIndex: frame.index,
-          blackPixelRatio: frame.blackPixelRatio,
-        }),
+        issue(
+          "error",
+          "black-frame",
+          "Sampled frame is mostly black.",
+          frame.timestampSeconds,
+          {
+            frameIndex: frame.index,
+            blackPixelRatio: frame.blackPixelRatio,
+          },
+        ),
       );
     }
 
     if (
       frame.edgeWhiteRatio >= thresholds.edgeArtifactRatio &&
-      frame.contentWhiteRatio <= thresholds.maxContentExtremeRatioForEdgeArtifact
+      frame.contentWhiteRatio <=
+        thresholds.maxContentExtremeRatioForEdgeArtifact
     ) {
       issues.push(
         issue(
@@ -393,7 +405,8 @@ export function buildVideoTechnicalReport(
 
     if (
       frame.edgeBlackRatio >= thresholds.edgeArtifactRatio &&
-      frame.contentBlackRatio <= thresholds.maxContentExtremeRatioForEdgeArtifact
+      frame.contentBlackRatio <=
+        thresholds.maxContentExtremeRatioForEdgeArtifact
     ) {
       issues.push(
         issue(
@@ -483,6 +496,20 @@ export function buildVideoTechnicalReport(
         thresholds.captionBandSparseRatio,
       ),
     },
+    signals: summarizeTechnicalSignals({
+      durationSeconds: input.probe.durationSeconds,
+      frames,
+      audio: input.audio,
+      thresholds: {
+        blackFramePixelRatio: thresholds.blackFramePixelRatio,
+        whiteFramePixelRatio: thresholds.whiteFramePixelRatio,
+        edgeArtifactRatio: thresholds.edgeArtifactRatio,
+        maxContentExtremeRatioForEdgeArtifact:
+          thresholds.maxContentExtremeRatioForEdgeArtifact,
+        freezeDifferenceThreshold: thresholds.lowMotionFrameDifference,
+        duplicateDifferenceThreshold: thresholds.lowMotionFrameDifference,
+      },
+    }),
     thresholds,
   };
   return report;
@@ -497,7 +524,9 @@ export async function reviewVideoTechnical(
   contactSheetMetadata?: ContactSheetMetadata;
 }> {
   const videoPath = resolve(input.videoPath);
-  const outputDir = resolve(input.outputDir ?? defaultVideoTechnicalOutputDir(videoPath));
+  const outputDir = resolve(
+    input.outputDir ?? defaultVideoTechnicalOutputDir(videoPath),
+  );
   const frameDir = join(outputDir, "contact-sheet-frames");
   await mkdir(frameDir, { recursive: true });
 
@@ -519,7 +548,10 @@ export async function reviewVideoTechnical(
     outputDir,
     frames,
   });
-  const contactSheetMetadataPath = join(outputDir, "contact-sheet.metadata.json");
+  const contactSheetMetadataPath = join(
+    outputDir,
+    "contact-sheet.metadata.json",
+  );
   await writeFile(
     contactSheetMetadataPath,
     `${JSON.stringify(contactSheetMetadata, null, 2)}\n`,
@@ -594,11 +626,17 @@ async function probeVideo(videoPath: string): Promise<VideoTechnicalProbe> {
     }>;
   };
   const streams = parsed.streams ?? [];
-  const videoStreams = streams.filter((stream) => stream.codec_type === "video");
-  const audioStreams = streams.filter((stream) => stream.codec_type === "audio");
+  const videoStreams = streams.filter(
+    (stream) => stream.codec_type === "video",
+  );
+  const audioStreams = streams.filter(
+    (stream) => stream.codec_type === "audio",
+  );
   const primaryVideo = videoStreams[0];
   if (!primaryVideo?.width || !primaryVideo.height) {
-    throw new Error(`Could not determine video stream dimensions for ${videoPath}`);
+    throw new Error(
+      `Could not determine video stream dimensions for ${videoPath}`,
+    );
   }
   const durationSeconds = Number(parsed.format?.duration ?? "0");
   if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
@@ -621,14 +659,20 @@ async function extractAndAnalyzeFrames(input: {
   durationSeconds: number;
   sampleCount: number;
 }): Promise<FrameTechnicalMetrics[]> {
-  const timestamps = buildSampleTimestamps(input.durationSeconds, input.sampleCount);
+  const timestamps = buildSampleTimestamps(
+    input.durationSeconds,
+    input.sampleCount,
+  );
   const frames: FrameTechnicalMetrics[] = [];
   let previousFrame: FrameTechnicalMetrics | undefined;
   let previousBuffer: Buffer | undefined;
 
   for (let index = 0; index < timestamps.length; index += 1) {
     const timestampSeconds = timestamps[index]!;
-    const imagePath = join(input.outputDir, `frame-${String(index + 1).padStart(3, "0")}.png`);
+    const imagePath = join(
+      input.outputDir,
+      `frame-${String(index + 1).padStart(3, "0")}.png`,
+    );
     await execFileAsync("ffmpeg", [
       "-y",
       "-ss",
@@ -675,15 +719,14 @@ async function measureAudio(videoPath: string): Promise<AudioTechnicalMetrics> {
         ? String(error.stderr ?? "")
         : "";
     const parsed = parseVolumeDetect(stderr);
-    if (
-      parsed.meanVolumeDb !== undefined ||
-      parsed.maxVolumeDb !== undefined
-    ) {
+    if (parsed.meanVolumeDb !== undefined || parsed.maxVolumeDb !== undefined) {
       return parsed;
     }
     return {
       analysisError:
-        error instanceof Error ? error.message : "Audio volume analysis failed.",
+        error instanceof Error
+          ? error.message
+          : "Audio volume analysis failed.",
     };
   }
 }
@@ -711,7 +754,10 @@ async function readLayoutPassThroughIssues(
     }>;
   };
   return (parsed.issues ?? [])
-    .filter((item) => typeof item.code === "string" && item.code.startsWith("layout-"))
+    .filter(
+      (item) =>
+        typeof item.code === "string" && item.code.startsWith("layout-"),
+    )
     .map((item) =>
       issue(
         normalizeSeverity(item.severity),
@@ -723,7 +769,10 @@ async function readLayoutPassThroughIssues(
     );
 }
 
-function buildSampleTimestamps(durationSeconds: number, sampleCount: number): number[] {
+function buildSampleTimestamps(
+  durationSeconds: number,
+  sampleCount: number,
+): number[] {
   return Array.from({ length: sampleCount }, (_, index) =>
     round((durationSeconds * (index + 1)) / (sampleCount + 1)),
   );
@@ -734,7 +783,11 @@ function parseFrameRate(value: string | undefined): number | undefined {
   const [numeratorRaw, denominatorRaw] = value.split("/");
   const numerator = Number(numeratorRaw);
   const denominator = Number(denominatorRaw ?? "1");
-  if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator === 0) {
+  if (
+    !Number.isFinite(numerator) ||
+    !Number.isFinite(denominator) ||
+    denominator === 0
+  ) {
     return undefined;
   }
   return round(numerator / denominator);
@@ -761,14 +814,26 @@ function findLowMotionRuns(
       continue;
     }
     if (runStart && runEnd) {
-      pushLowMotionRun(runs, runStart, runEnd, frameCount, lowMotionMinRunSeconds);
+      pushLowMotionRun(
+        runs,
+        runStart,
+        runEnd,
+        frameCount,
+        lowMotionMinRunSeconds,
+      );
     }
     runStart = undefined;
     runEnd = undefined;
     frameCount = 0;
   }
   if (runStart && runEnd) {
-    pushLowMotionRun(runs, runStart, runEnd, frameCount, lowMotionMinRunSeconds);
+    pushLowMotionRun(
+      runs,
+      runStart,
+      runEnd,
+      frameCount,
+      lowMotionMinRunSeconds,
+    );
   }
   return runs;
 }
@@ -812,7 +877,12 @@ function captionBandSparseCoverage(
 }
 
 function pixelLuma(data: Buffer, offset: number): number {
-  return (0.2126 * data[offset]! + 0.7152 * data[offset + 1]! + 0.0722 * data[offset + 2]!) / 255;
+  return (
+    (0.2126 * data[offset]! +
+      0.7152 * data[offset + 1]! +
+      0.0722 * data[offset + 2]!) /
+    255
+  );
 }
 
 function maxFrameMetric(
@@ -825,7 +895,9 @@ function maxFrameMetric(
   return round(Math.max(0, ...frames.map((frame) => frame[key])));
 }
 
-function isLayoutIssue(issue: VideoTechnicalIssue): issue is VideoTechnicalIssue & {
+function isLayoutIssue(
+  issue: VideoTechnicalIssue,
+): issue is VideoTechnicalIssue & {
   code: `layout-${string}`;
 } {
   return issue.code.startsWith("layout-");
@@ -866,8 +938,11 @@ function sortIssues(issues: VideoTechnicalIssue[]): VideoTechnicalIssue[] {
   });
 }
 
-function normalizeSeverity(value: string | undefined): VideoTechnicalIssueSeverity {
-  if (value === "error" || value === "warning" || value === "info") return value;
+function normalizeSeverity(
+  value: string | undefined,
+): VideoTechnicalIssueSeverity {
+  if (value === "error" || value === "warning" || value === "info")
+    return value;
   return "warning";
 }
 

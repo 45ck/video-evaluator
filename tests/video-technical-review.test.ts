@@ -107,6 +107,9 @@ test("buildVideoTechnicalReport preserves content-machine technical issue codes"
   assert.ok(codes.has("caption-band-sparse"));
   assert.equal(report.metrics.longestLowMotionRunSeconds, 2);
   assert.equal(report.metrics.captionBandSparseCoverage, 1);
+  assert.equal(report.signals.freezeBlackWhite.blackFrames, 1);
+  assert.equal(report.signals.edgeGutter.blackGutterFrames, 1);
+  assert.equal(report.signals.temporal.framesAnalyzed, 4);
 });
 
 test("buildVideoTechnicalReport detects near silent audio", () => {
@@ -176,7 +179,8 @@ test("analyzePngFrame computes edge and frame metrics from png pixels", () => {
   for (let y = 0; y < png.height; y += 1) {
     for (let x = 0; x < png.width; x += 1) {
       const offset = (png.width * y + x) << 2;
-      const isEdge = x === 0 || y === 0 || x === png.width - 1 || y === png.height - 1;
+      const isEdge =
+        x === 0 || y === 0 || x === png.width - 1 || y === png.height - 1;
       png.data[offset] = isEdge ? 255 : 32;
       png.data[offset + 1] = isEdge ? 255 : 32;
       png.data[offset + 2] = isEdge ? 255 : 32;

@@ -35,6 +35,14 @@ export const VideoShotsRequestSchema = z.object({
   extractRepresentativeFrames: z.boolean().default(true),
 });
 
+export const SourceMediaSignalsRequestSchema = VideoShotsRequestSchema.extend({
+  outputPath: z.string().min(1).optional(),
+  runAudioSignals: z.boolean().default(true),
+  runVideoShots: z.boolean().default(true),
+  silenceNoiseDb: z.number().min(-120).max(0).default(-35),
+  silenceMinDurationSeconds: z.number().min(0.05).max(10).default(0.25),
+});
+
 export const SegmentEvidenceRequestSchema = VideoIntakeRequestSchema.extend({
   outputPath: z.string().min(1).optional(),
   maxTextItemsPerSegment: z.number().int().min(1).max(50).default(8),
@@ -113,6 +121,56 @@ export const CompareBundlesRequestSchema = z.object({
   right: VideoIntakeRequestSchema,
 });
 
+const VisualGateStatusSchema = z.enum(["pass", "warn", "fail", "skip"]);
+
+export const GoldenFrameCompareRequestSchema = z.object({
+  baselineFramePath: z.string().min(1),
+  currentFramePath: z.string().min(1),
+  outputDir: z.string().min(1).optional(),
+  outputPath: z.string().min(1).optional(),
+  mode: z.enum(["compare", "update"]).default("compare"),
+  pixelmatchThreshold: z.number().min(0).max(1).default(0.1),
+  maxMismatchPercent: z.number().min(0).max(1).default(0.001),
+  warnMismatchPercent: z.number().min(0).max(1).optional(),
+  missingBaselineStatus: VisualGateStatusSchema.default("skip"),
+});
+
+export const DemoVisualFrameRequestSchema = z.object({
+  id: z.string().min(1).optional(),
+  baselineFramePath: z.string().min(1).optional(),
+  currentFramePath: z.string().min(1),
+  timestampSeconds: z.number().finite().min(0).optional(),
+});
+
+export const DemoVisualReviewRequestSchema = z
+  .object({
+    baselineDir: z.string().min(1).optional(),
+    currentDir: z.string().min(1).optional(),
+    frames: z.array(DemoVisualFrameRequestSchema).default([]),
+    outputDir: z.string().min(1).optional(),
+    outputPath: z.string().min(1).optional(),
+    mode: z.enum(["compare", "update"]).default("compare"),
+    pixelmatchThreshold: z.number().min(0).max(1).default(0.1),
+    maxMismatchPercent: z.number().min(0).max(1).default(0.001),
+    warnMismatchPercent: z.number().min(0).max(1).optional(),
+    missingBaselineStatus: VisualGateStatusSchema.default("skip"),
+  })
+  .refine(
+    (input) =>
+      input.frames.length > 0 || Boolean(input.baselineDir && input.currentDir),
+    {
+      message: "frames or baselineDir/currentDir is required",
+    },
+  )
+  .refine(
+    (input) =>
+      Boolean(input.baselineDir) ||
+      input.frames.every((frame) => Boolean(frame.baselineFramePath)),
+    {
+      message: "baselineDir or frames[].baselineFramePath is required",
+    },
+  );
+
 export const PackageReviewPromptRequestSchema = VideoIntakeRequestSchema.extend(
   {
     specPath: z.string().min(1).optional(),
@@ -130,6 +188,9 @@ export type StoryboardExtractRequest = z.infer<
   typeof StoryboardExtractRequestSchema
 >;
 export type VideoShotsRequest = z.infer<typeof VideoShotsRequestSchema>;
+export type SourceMediaSignalsRequest = z.infer<
+  typeof SourceMediaSignalsRequestSchema
+>;
 export type SegmentEvidenceRequest = z.infer<
   typeof SegmentEvidenceRequestSchema
 >;
@@ -150,6 +211,15 @@ export type VideoTechnicalReviewRequest = z.infer<
   typeof VideoTechnicalReviewRequestSchema
 >;
 export type CompareBundlesRequest = z.infer<typeof CompareBundlesRequestSchema>;
+export type GoldenFrameCompareRequest = z.infer<
+  typeof GoldenFrameCompareRequestSchema
+>;
+export type DemoVisualFrameRequest = z.infer<
+  typeof DemoVisualFrameRequestSchema
+>;
+export type DemoVisualReviewRequest = z.infer<
+  typeof DemoVisualReviewRequestSchema
+>;
 export type PackageReviewPromptRequest = z.infer<
   typeof PackageReviewPromptRequestSchema
 >;

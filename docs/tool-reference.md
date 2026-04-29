@@ -35,7 +35,10 @@ JSON
 
 | Tool                    | Purpose                                                                     | Main Output         |
 | ----------------------- | --------------------------------------------------------------------------- | ------------------- |
+| `analyze-video`         | Orchestrate media probe, quality gates, caption artifacts, and technical review for one video. | `analyzer.report.json` |
+| `analyze-bundle`        | Resolve an existing output bundle, package bundle evidence, and run the video analyzer. | `analyzer.report.json` |
 | `video-intake`          | Normalize a video path or existing output folder into a known bundle shape. | bundle artifact map |
+| `source-media-signals`  | Probe source media and emit conservative audio, scene, frame, and text-risk evidence status. | `source-media.signals.json` |
 | `review-bundle`         | Inspect an existing bundle and report what review evidence exists.          | review report       |
 | `package-review-prompt` | Build an evidence-grounded prompt for a coding agent.                       | packaged prompt     |
 | `compare-bundles`       | Compare two output folders or video runs.                                   | comparison report   |
@@ -52,6 +55,11 @@ JSON
 `segment-storyboard` is the better choice after `video-shots` when review needs
 coverage across all detected segments.
 
+`source-media-signals` is a first-pass intake signal collector. It writes
+ffprobe facts, ffmpeg audio volume/silence when available, `video-shots` scene
+estimates when possible, representative frame evidence status, and a placeholder
+text-risk status without claiming OCR evidence.
+
 ## OCR, Transitions, And Summaries
 
 | Tool                     | Purpose                                                                                 | Main Output                   |
@@ -61,6 +69,8 @@ coverage across all detected segments.
 | `storyboard-understand`  | Summarize likely apps, views, flow, and open questions.                                 | `storyboard.summary.json`     |
 | `layout-safety-review`   | Detect declared layout overlaps, caption safe-zone collisions, and OCR text collisions. | `layout-safety.report.json`   |
 | `video-technical-review` | Detect resolution, audio, frame, edge, low-motion, caption-band, and layout pass-through issues. | `video-technical.report.json` |
+| `golden-frame-compare`   | Compare one current PNG frame against a baseline PNG frame, or update the baseline.      | `golden-frame.diff.json`      |
+| `demo-visual-review`     | Compare current demo PNG frames against baseline frames by explicit list or directory.   | `demo-visual-review.diff.json` |
 | `segment-evidence`       | Fuse shot, storyboard, OCR, transition, and timeline artifacts by shot.                 | `segment.evidence.json`       |
 
 Run OCR and transitions against `segment-storyboard/` when that folder exists
@@ -84,7 +94,14 @@ video-shots -> segment-storyboard -> storyboard-ocr -> storyboard-transitions ->
 Existing run review:
 
 ```text
-review-bundle -> package-review-prompt
+analyze-bundle -> package-review-prompt
+```
+
+Golden-frame review:
+
+```text
+golden-frame-compare
+demo-visual-review
 ```
 
 Before/after review:

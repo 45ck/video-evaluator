@@ -39,6 +39,33 @@ Several artifacts repeat frame sampling fields. Their stable values are:
 Consumers should treat scores, confidence values, OCR text, inferred labels, and
 diagnostic notes as model- or heuristic-derived evidence, not as ground truth.
 
+## `analyzer.report.json`
+
+Schema version: string literal `analyzer-report.v1`.
+
+Produced by `analyze-video` and `analyze-bundle`. This is the canonical
+orchestration report that points to lower-level evidence instead of replacing
+specialized artifacts.
+
+Stable top-level fields:
+
+- `schemaVersion`: `"analyzer-report.v1"`.
+- `createdAt` and `completedAt`: ISO-8601 timestamp strings for the analysis run.
+- `request`: normalized analyzer request when available.
+- `subject`: analyzed video, bundle, demo capture, or comparison subject.
+- `status`: collapsed `"pass"`, `"warn"`, `"fail"`, `"skip"`, or `"unknown"` status.
+- `metrics`: summary metrics promoted from child artifacts.
+- `mediaProbe`: contract-shaped `media-probe.v1` facts when probing ran.
+- `qualityGates`: contract-shaped `quality-gates.v1` report when gates ran.
+- `captionArtifacts`: generated `caption-artifact.v1` records when captions ran.
+- `artifacts`: paths to generated and consumed evidence artifacts.
+- `diagnostics`: orchestration, probe, quality, caption, and technical-review issues.
+
+Current child artifacts emitted by the orchestrator include `media-probe.json`,
+`quality-gates.json`, `caption-artifact.json`,
+`technical-review/video-technical.report.json`, and `review-bundle.json` when
+the corresponding inputs or capabilities are present.
+
 ## `layout-annotations.v1.json`
 
 Schema version: string literal `layout-annotations.v1`.
@@ -122,6 +149,45 @@ Stable issue codes:
 - `low-motion-run`
 - `caption-band-sparse`
 - `layout-*` pass-through issues from `layoutReportPath`
+
+## `visual-diff.v1`
+
+Schema version: string literal `visual-diff.v1`.
+
+Produced by `golden-frame-compare` and `demo-visual-review`.
+
+Stable top-level fields:
+
+- `schemaVersion`: `"visual-diff.v1"`.
+- `createdAt`: ISO-8601 timestamp string for artifact creation.
+- `left`: baseline frame or baseline-frame collection reference.
+- `right`: current frame or current-frame collection reference.
+- `threshold`: maximum mismatch ratio allowed for pass status.
+- `overallStatus`: `"pass"`, `"warn"`, `"fail"`, or `"skip"`.
+- `frames`: compared frame records.
+- `summary.comparedFrameCount`: number of frame pairs actually compared.
+- `summary.averageMismatchPercent`: average normalized mismatch ratio for compared frames.
+- `summary.maxMismatchPercent`: largest normalized mismatch ratio for compared frames.
+- `summary.metrics.maxMismatchPercent`: thresholded gate metric.
+- `diagnostics`: missing baseline/current frame, baseline update, or dimension mismatch diagnostics.
+
+Stable frame fields:
+
+- `index`: zero-based frame index in comparison order.
+- `timestampSeconds`: optional source timestamp.
+- `leftFramePath`: baseline frame path.
+- `rightFramePath`: current frame path.
+- `mismatchPixelCount`: pixel count reported by image diff.
+- `totalPixelCount`: compared pixel count.
+- `mismatchPercent`: normalized mismatch ratio from `0` to `1`.
+- `metadata.status`: per-frame threshold status.
+
+Known diagnostic codes:
+
+- `missing-baseline-frame`
+- `missing-current-frame`
+- `dimension-mismatch`
+- `baseline-updated`
 
 ## `contact-sheet.metadata.json`
 

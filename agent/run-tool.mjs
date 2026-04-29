@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import {
+  AnalyzeBundleRequestSchema,
+  AnalyzeVideoRequestSchema,
   CompareBundlesRequestSchema,
   InstallSkillPackRequestSchema,
   PackageReviewPromptRequestSchema,
@@ -9,12 +11,17 @@ import {
   SkillCatalogRequestSchema,
   StoryboardExtractRequestSchema,
   VideoShotsRequestSchema,
+  SourceMediaSignalsRequestSchema,
   StoryboardOcrRequestSchema,
   StoryboardTransitionsRequestSchema,
   StoryboardUnderstandRequestSchema,
   LayoutSafetyReviewRequestSchema,
   VideoTechnicalReviewRequestSchema,
+  GoldenFrameCompareRequestSchema,
+  DemoVisualReviewRequestSchema,
   VideoIntakeRequestSchema,
+  analyzeBundle,
+  analyzeVideo,
   compareBundles,
   inferStoryboardTransitions,
   installSkillPack,
@@ -26,17 +33,30 @@ import {
   runSegmentStoryboard,
   runStoryboardExtract,
   runVideoShots,
+  runSourceMediaSignals,
   runStoryboardOcr,
   runStoryboardTransitions,
   runStoryboardUnderstand,
   runLayoutSafetyReview,
   runVideoTechnicalReview,
+  runGoldenFrameCompare,
+  runDemoVisualReview,
   runVideoIntake,
 } from "../dist/index.js";
 
 const toolName = process.argv[2];
 
 const registry = {
+  "analyze-video": {
+    tool: "video-evaluator/analyze-video",
+    inputSchema: AnalyzeVideoRequestSchema,
+    handler: async ({ input }) => analyzeVideo(input),
+  },
+  "analyze-bundle": {
+    tool: "video-evaluator/analyze-bundle",
+    inputSchema: AnalyzeBundleRequestSchema,
+    handler: async ({ input }) => analyzeBundle(input),
+  },
   "skill-catalog": {
     tool: "video-evaluator/skill-catalog",
     inputSchema: SkillCatalogRequestSchema,
@@ -72,6 +92,11 @@ const registry = {
     inputSchema: VideoShotsRequestSchema,
     handler: async ({ input }) => runVideoShots(input),
   },
+  "source-media-signals": {
+    tool: "video-evaluator/source-media-signals",
+    inputSchema: SourceMediaSignalsRequestSchema,
+    handler: async ({ input }) => runSourceMediaSignals(input),
+  },
   "segment-evidence": {
     tool: "video-evaluator/segment-evidence",
     inputSchema: SegmentEvidenceRequestSchema,
@@ -106,6 +131,16 @@ const registry = {
     tool: "video-evaluator/video-technical-review",
     inputSchema: VideoTechnicalReviewRequestSchema,
     handler: async ({ input }) => runVideoTechnicalReview(input),
+  },
+  "golden-frame-compare": {
+    tool: "video-evaluator/golden-frame-compare",
+    inputSchema: GoldenFrameCompareRequestSchema,
+    handler: async ({ input }) => runGoldenFrameCompare(input),
+  },
+  "demo-visual-review": {
+    tool: "video-evaluator/demo-visual-review",
+    inputSchema: DemoVisualReviewRequestSchema,
+    handler: async ({ input }) => runDemoVisualReview(input),
   },
   "compare-bundles": {
     tool: "video-evaluator/compare-bundles",
