@@ -24,7 +24,8 @@ before other repos depend on it.
   timeline reconstruction
 - Output shape: `storyboard.manifest.json`, `storyboard.ocr.json`,
   `storyboard.transitions.json`, `storyboard.summary.json`,
-  `timeline.evidence.json`, `video.shots.json`, `segment.evidence.json`
+  `timeline.evidence.json`, `video.shots.json`, `segment.evidence.json`,
+  `layout-safety.report.json`
 - Maturity: experimental but benchmarked, with explicit low-signal
   reporting instead of pretending weak OCR is semantic proof
 

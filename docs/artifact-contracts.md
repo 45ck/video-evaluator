@@ -6,8 +6,10 @@ debug dump specification.
 
 ## Compatibility Model
 
-Artifacts are JSON files with a top-level `schemaVersion` integer. Consumers must
-check the artifact file name and `schemaVersion` before relying on fields.
+Artifacts are JSON files with a top-level `schemaVersion`. Consumers must check
+the artifact file name and `schemaVersion` before relying on fields. Older
+storyboard artifacts use integer schema versions; named cross-tool artifacts may
+use string-literal schema versions.
 
 Compatibility expectations:
 
