@@ -166,14 +166,19 @@ export async function packageReviewPrompt(input: PackageReviewPromptRequest) {
   const timelinePreview = await loadTimelinePreview(bundle.artifacts["timeline.evidence.json"]);
   const shotPreview = await loadShotPreview(bundle.artifacts["video.shots.json"]);
   const segmentPreview = await loadSegmentPreview(bundle.artifacts["segment.evidence.json"]);
-  const qualityGatePreview = await loadQualityGatePreview(bundle.artifacts["quality-gates.json"]);
+  const qualityGatePreview = await loadQualityPreview([
+    bundle.artifacts["quality.json"],
+    bundle.artifacts["quality-gates.json"],
+  ]);
   const visualDiffPreview = await loadVisualDiffPreview([
+    bundle.artifacts["visual-diff-report.json"],
     bundle.artifacts["demo-visual-review.diff.json"],
     bundle.artifacts["golden-frame.diff.json"],
   ]);
   const screenshotPreview = await loadScreenshotPreview(
     bundle.artifacts["demo-capture-evidence.json"],
     bundle.artifacts["storyboard.manifest.json"],
+    bundle.artifacts["screenshots/manifest.json"],
   );
   const captionRiskPreview = await loadCaptionRiskPreview(
     bundle.artifacts["caption-artifact.json"],
@@ -212,8 +217,10 @@ export async function packageReviewPrompt(input: PackageReviewPromptRequest) {
 
 function chooseNextArtifact(bundle: Awaited<ReturnType<typeof intakeBundle>>): { name: string; path: string } | null {
   const priority = [
+    "quality.json",
     "quality-gates.json",
     "layout-safety.report.json",
+    "visual-diff-report.json",
     "demo-visual-review.diff.json",
     "golden-frame.diff.json",
     "caption-artifact.json",
@@ -368,6 +375,49 @@ async function loadSegmentPreview(segmentPath: string | undefined): Promise<stri
   }
 }
 
+async function loadQualityPreview(paths: Array<string | undefined>): Promise<string[]> {
+  const lines: string[] = [];
+  for (const path of paths.filter((value): value is string => Boolean(value))) {
+    if (path.endsWith("quality.json")) {
+      lines.push(...(await loadDemoQualityPreview(path)));
+    } else {
+      lines.push(...(await loadQualityGatePreview(path)));
+    }
+  }
+  return lines.slice(0, 10);
+}
+
+async function loadDemoQualityPreview(path: string): Promise<string[]> {
+  try {
+    const raw = await readFile(path, "utf8");
+    const parsed = JSON.parse(raw) as {
+      status?: string;
+      hasFailures?: boolean;
+      summary?: { fail?: number; warn?: number; total?: number };
+      error?: { message?: string };
+      results?: Array<{
+        checkName?: string;
+        status?: string;
+        message?: string;
+        suggestion?: string;
+      }>;
+    };
+    const lines = [
+      `${path}: ${parsed.status ?? (parsed.hasFailures ? "fail" : "present")}; fail=${parsed.summary?.fail ?? "?"} warn=${parsed.summary?.warn ?? "?"} total=${parsed.summary?.total ?? "?"}`,
+    ];
+    if (parsed.error?.message) lines.push(`${path}: error - ${parsed.error.message}`);
+    for (const result of (parsed.results ?? [])
+      .filter((entry) => entry.status === "fail" || entry.status === "warn")
+      .slice(0, 8)) {
+      const detail = result.message ?? result.suggestion ?? "review quality evidence";
+      lines.push(`${result.checkName ?? "quality"}: ${result.status} - ${detail}`);
+    }
+    return lines;
+  } catch {
+    return [];
+  }
+}
+
 async function loadQualityGatePreview(path: string | undefined): Promise<string[]> {
   if (!path) return [];
   try {
@@ -404,8 +454,12 @@ async function loadVisualDiffPreview(paths: Array<string | undefined>): Promise<
     try {
       const raw = await readFile(path, "utf8");
       const parsed = JSON.parse(raw) as {
+        status?: string;
         overallStatus?: string;
         summary?: {
+          demosWithRegression?: number;
+          demosMissingBaseline?: number;
+          framesExceedingThreshold?: number;
           comparedFrameCount?: number;
           averageMismatchPercent?: number;
           maxMismatchPercent?: number;
@@ -413,6 +467,15 @@ async function loadVisualDiffPreview(paths: Array<string | undefined>): Promise<
         diagnostics?: Array<{ code?: string; message?: string; severity?: string }>;
       };
       const summary = parsed.summary ?? {};
+      if (
+        typeof summary.demosWithRegression === "number" ||
+        typeof summary.framesExceedingThreshold === "number"
+      ) {
+        lines.push(
+          `${path}: ${parsed.status ?? parsed.overallStatus ?? "unknown"}; regressions=${summary.demosWithRegression ?? 0}; missingBaseline=${summary.demosMissingBaseline ?? 0}; framesOverThreshold=${summary.framesExceedingThreshold ?? 0}`,
+        );
+        continue;
+      }
       const max =
         typeof summary.maxMismatchPercent === "number"
           ? `${(summary.maxMismatchPercent * 100).toFixed(2)}% max mismatch`
@@ -422,7 +485,7 @@ async function loadVisualDiffPreview(paths: Array<string | undefined>): Promise<
           ? `${(summary.averageMismatchPercent * 100).toFixed(2)}% average`
           : "average unknown";
       lines.push(
-        `${path}: ${parsed.overallStatus ?? "unknown"}; ${summary.comparedFrameCount ?? 0} frame(s); ${max}; ${average}`,
+        `${path}: ${parsed.overallStatus ?? parsed.status ?? "unknown"}; ${summary.comparedFrameCount ?? 0} frame(s); ${max}; ${average}`,
       );
       for (const diagnostic of (parsed.diagnostics ?? []).slice(0, 3)) {
         lines.push(
@@ -439,6 +502,7 @@ async function loadVisualDiffPreview(paths: Array<string | undefined>): Promise<
 async function loadScreenshotPreview(
   capturePath: string | undefined,
   storyboardPath: string | undefined,
+  screenshotManifestPath: string | undefined,
 ): Promise<string[]> {
   const lines: string[] = [];
   if (capturePath) {
@@ -461,6 +525,35 @@ async function loadScreenshotPreview(
             ? ` @ ${evidence.timestampSeconds.toFixed(2)}s`
             : "";
         lines.push(`${evidence.framePath ?? "screenshot"}${timestamp}${evidence.note ? ` - ${evidence.note}` : ""}`);
+      }
+    } catch {
+      // Fall back to storyboard frames below.
+    }
+  }
+  if (screenshotManifestPath && lines.length < 2) {
+    try {
+      const raw = await readFile(screenshotManifestPath, "utf8");
+      const parsed = JSON.parse(raw) as {
+        counts?: {
+          stepScreenshots?: number;
+          assertScreenshotPairs?: number;
+          chapterTitleScreenshots?: number;
+        };
+        stepScreenshots?: Array<{ path?: string; stepIndex?: number }>;
+        assertScreenshotPairs?: Array<{ beforePath?: string; afterPath?: string; stepIndex?: number }>;
+        chapterTitleScreenshots?: Array<{ path?: string; chapterIndex?: number }>;
+      };
+      lines.push(
+        `${screenshotManifestPath}: step=${parsed.counts?.stepScreenshots ?? 0} assertPairs=${parsed.counts?.assertScreenshotPairs ?? 0} chapterTitles=${parsed.counts?.chapterTitleScreenshots ?? 0}`,
+      );
+      for (const screenshot of (parsed.stepScreenshots ?? []).slice(0, 3)) {
+        lines.push(`${screenshot.path ?? "step screenshot"} step=${screenshot.stepIndex ?? "?"}`);
+      }
+      for (const pair of (parsed.assertScreenshotPairs ?? []).slice(0, 2)) {
+        lines.push(`${pair.beforePath ?? "assert before"} / ${pair.afterPath ?? "assert after"} step=${pair.stepIndex ?? "?"}`);
+      }
+      for (const screenshot of (parsed.chapterTitleScreenshots ?? []).slice(0, 2)) {
+        lines.push(`${screenshot.path ?? "chapter title screenshot"} chapter=${screenshot.chapterIndex ?? "?"}`);
       }
     } catch {
       // Fall back to storyboard frames below.

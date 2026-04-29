@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -90,6 +90,24 @@ test("package review prompt references canonical analyzer reports", async () => 
 
 test("package review prompt routes quality, visual, screenshot, caption, and layout evidence", async () => {
   await withTempDir(async (dir) => {
+    await writeJson(join(dir, "quality.json"), {
+      schemaVersion: 1,
+      status: "fail",
+      hasFailures: true,
+      summary: { fail: 1, warn: 1, total: 2 },
+      results: [
+        {
+          checkName: "rendered-video-integrity",
+          status: "fail",
+          message: "Static fallback background detected.",
+        },
+        {
+          checkName: "analyzer:layout-safety",
+          status: "warn",
+          message: "Layout safety warning reported.",
+        },
+      ],
+    });
     await writeJson(join(dir, "quality-gates.json"), {
       schemaVersion: "quality-gates.v1",
       createdAt: "2026-04-29T00:00:00.000Z",
@@ -104,6 +122,15 @@ test("package review prompt routes quality, visual, screenshot, caption, and lay
         },
       ],
     });
+    await mkdir(join(dir, "output"), { recursive: true });
+    await writeJson(join(dir, "output", "visual-diff-report.json"), {
+      status: "regression",
+      summary: {
+        demosWithRegression: 1,
+        demosMissingBaseline: 0,
+        framesExceedingThreshold: 3,
+      },
+    });
     await writeJson(join(dir, "demo-visual-review.diff.json"), {
       schemaVersion: "visual-diff.v1",
       createdAt: "2026-04-29T00:00:00.000Z",
@@ -117,6 +144,17 @@ test("package review prompt routes quality, visual, screenshot, caption, and lay
         maxMismatchPercent: 0.08,
       },
       diagnostics: [{ code: "dimension-mismatch", message: "Frame sizes differ." }],
+    });
+    await mkdir(join(dir, "screenshots"), { recursive: true });
+    await writeJson(join(dir, "screenshots", "manifest.json"), {
+      counts: {
+        stepScreenshots: 1,
+        assertScreenshotPairs: 0,
+        chapterTitleScreenshots: 0,
+      },
+      stepScreenshots: [{ stepIndex: 0, path: join(dir, "screenshots", "step-0000.png") }],
+      assertScreenshotPairs: [],
+      chapterTitleScreenshots: [],
     });
     await writeJson(join(dir, "demo-capture-evidence.json"), {
       schemaVersion: "demo-capture-evidence.v1",
@@ -149,10 +187,12 @@ test("package review prompt routes quality, visual, screenshot, caption, and lay
 
     const result = await packageReviewPrompt({ outputDir: dir });
 
-    assert.match(result.prompt, /Suggested next artifact: quality-gates\.json/);
+    assert.match(result.prompt, /Suggested next artifact: quality\.json/);
     assert.match(result.prompt, /Quality gate failures\/warnings/);
+    assert.match(result.prompt, /rendered-video-integrity: fail - Static fallback background detected/);
     assert.match(result.prompt, /caption-safe-zone: warn @ 2\.40s/);
     assert.match(result.prompt, /Visual diff summary/);
+    assert.match(result.prompt, /regressions=1/);
     assert.match(result.prompt, /8\.00% max mismatch/);
     assert.match(result.prompt, /Screenshot evidence/);
     assert.match(result.prompt, /screens\/001\.png @ 1\.20s/);

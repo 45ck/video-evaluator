@@ -46,8 +46,10 @@ reviewer starts from the shared analyzer output.
 The prompt also routes common reviewer failure modes:
 
 - `quality-gates.json` failures and warnings, with first timestamped evidence
+- `quality.json` failures and warnings from consumer repos such as demo-machine
 - `demo-visual-review.diff.json` and `golden-frame.diff.json` mismatch summary
-- `demo-capture-evidence.json` screenshot evidence
+- legacy `visual-diff-report.json` regression summaries when present
+- `demo-capture-evidence.json` or `screenshots/manifest.json` screenshot evidence
 - `caption-artifact.json` readability or sync risk plus caption-related gates
 - `layout-safety.report.json` caption, safe-zone, OCR, and overlap issues
 - an explicit suggested first artifact to inspect next

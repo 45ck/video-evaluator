@@ -19,6 +19,7 @@ const REPORT_CANDIDATES = [
   "golden-frame.diff.json",
   "demo-visual-review.diff.json",
   "demo-capture-evidence.json",
+  "screenshots/manifest.json",
   "quality.json",
   "verification.json",
   "validate.json",
@@ -38,6 +39,10 @@ const REPORT_CANDIDATES = [
   "subtitles.vtt",
   "subtitles.srt",
   "trace.zip",
+] as const;
+
+const NESTED_REPORT_CANDIDATES = [
+  { name: "visual-diff-report.json", path: ["output", "visual-diff-report.json"] },
 ] as const;
 
 const STORYBOARD_SUBDIR_CANDIDATES = [
@@ -81,23 +86,33 @@ async function maybeReadJson(path: string): Promise<unknown | null> {
   }
 }
 
+function normalizeReportStatus(status: string): string {
+  const normalized = status.toLowerCase();
+  if (["error", "failed", "failure", "regression", "reject", "rejected"].includes(normalized)) {
+    return "fail";
+  }
+  if (["warning", "warnings"].includes(normalized)) return "warn";
+  if (["passed", "ok", "success", "unchanged"].includes(normalized)) return "pass";
+  return normalized;
+}
+
 function deriveReportStatus(name: string, data: unknown): { status: string; note?: string } {
   if (!data || typeof data !== "object") {
     return { status: "present" };
   }
   const record = data as Record<string, unknown>;
   if (typeof record.status === "string") {
-    return { status: record.status };
+    return { status: normalizeReportStatus(record.status) };
   }
   if (typeof record.overallStatus === "string") {
-    return { status: record.overallStatus };
+    return { status: normalizeReportStatus(record.overallStatus) };
   }
   if (
     record.summary &&
     typeof record.summary === "object" &&
     typeof (record.summary as { status?: unknown }).status === "string"
   ) {
-    return { status: (record.summary as { status: string }).status };
+    return { status: normalizeReportStatus((record.summary as { status: string }).status) };
   }
   if (typeof record.passed === "boolean") {
     return { status: record.passed ? "pass" : "fail" };
@@ -142,7 +157,10 @@ function deriveRecommendedFocus(
   if (artifacts["golden-frame.diff.json"] || artifacts["demo-visual-review.diff.json"]) {
     focus.add("visual diff");
   }
-  if (artifacts["demo-capture-evidence.json"]) focus.add("screenshot evidence");
+  if (artifacts["visual-diff-report.json"]) focus.add("visual diff");
+  if (artifacts["demo-capture-evidence.json"] || artifacts["screenshots/manifest.json"]) {
+    focus.add("screenshot evidence");
+  }
   if (artifacts["timestamps.json"]) focus.add("audio timeline");
   if (artifacts["timeline.evidence.json"]) focus.add("timeline evidence");
   if (artifacts["video.shots.json"]) focus.add("video shot structure");
@@ -257,6 +275,10 @@ export async function intakeBundle(request: VideoIntakeRequest): Promise<BundleA
     for (const name of REPORT_CANDIDATES) {
       const path = join(rootDir, name);
       if (await pathExists(path)) artifacts[name] = path;
+    }
+    for (const candidate of NESTED_REPORT_CANDIDATES) {
+      const path = join(rootDir, ...candidate.path);
+      if (await pathExists(path)) artifacts[candidate.name] = path;
     }
     for (const name of STORYBOARD_SUBDIR_CANDIDATES) {
       const path = join(rootDir, "segment-storyboard", name);
