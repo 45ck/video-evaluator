@@ -87,6 +87,27 @@ export const LayoutSafetyReviewRequestSchema = z.object({
   maxCaptionZoneOverlapRatio: z.number().min(0).max(1).default(0.02),
 });
 
+export const VideoTechnicalReviewRequestSchema = z.object({
+  videoPath: z.string().min(1),
+  outputDir: z.string().min(1).optional(),
+  expectedWidth: z.number().int().min(1).optional().default(1080),
+  expectedHeight: z.number().int().min(1).optional().default(1920),
+  expectAudio: z.boolean().default(true),
+  expectCaptions: z.boolean().default(true),
+  frameSampleCount: z.number().int().min(2).max(48).default(12),
+  layoutReportPath: z.string().min(1).optional(),
+  nearSilentMeanVolumeDb: z.number().max(0).default(-45),
+  nearSilentMaxVolumeDb: z.number().max(0).default(-35),
+  blackFramePixelRatio: z.number().min(0).max(1).default(0.92),
+  whiteFramePixelRatio: z.number().min(0).max(1).default(0.92),
+  edgeArtifactRatio: z.number().min(0).max(1).default(0.82),
+  maxContentExtremeRatioForEdgeArtifact: z.number().min(0).max(1).default(0.25),
+  lowMotionFrameDifference: z.number().min(0).max(1).default(0.006),
+  lowMotionMinRunSeconds: z.number().min(0).max(60).default(1.5),
+  captionBandSparseRatio: z.number().min(0).max(1).default(0.01),
+  captionBandSparseMinCoverage: z.number().min(0).max(1).default(0.75),
+});
+
 export const CompareBundlesRequestSchema = z.object({
   left: VideoIntakeRequestSchema,
   right: VideoIntakeRequestSchema,
@@ -124,6 +145,9 @@ export type StoryboardTransitionsRequest = z.infer<
 >;
 export type LayoutSafetyReviewRequest = z.infer<
   typeof LayoutSafetyReviewRequestSchema
+>;
+export type VideoTechnicalReviewRequest = z.infer<
+  typeof VideoTechnicalReviewRequestSchema
 >;
 export type CompareBundlesRequest = z.infer<typeof CompareBundlesRequestSchema>;
 export type PackageReviewPromptRequest = z.infer<

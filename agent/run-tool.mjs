@@ -13,6 +13,7 @@ import {
   StoryboardTransitionsRequestSchema,
   StoryboardUnderstandRequestSchema,
   LayoutSafetyReviewRequestSchema,
+  VideoTechnicalReviewRequestSchema,
   VideoIntakeRequestSchema,
   compareBundles,
   inferStoryboardTransitions,
@@ -29,6 +30,7 @@ import {
   runStoryboardTransitions,
   runStoryboardUnderstand,
   runLayoutSafetyReview,
+  runVideoTechnicalReview,
   runVideoIntake,
 } from "../dist/index.js";
 
@@ -99,6 +101,11 @@ const registry = {
     tool: "video-evaluator/layout-safety-review",
     inputSchema: LayoutSafetyReviewRequestSchema,
     handler: async ({ input }) => runLayoutSafetyReview(input),
+  },
+  "video-technical-review": {
+    tool: "video-evaluator/video-technical-review",
+    inputSchema: VideoTechnicalReviewRequestSchema,
+    handler: async ({ input }) => runVideoTechnicalReview(input),
   },
   "compare-bundles": {
     tool: "video-evaluator/compare-bundles",

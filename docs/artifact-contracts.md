@@ -88,6 +88,57 @@ Stable top-level fields:
   caption safe zone.
 - `metrics.ocrTextOverlapCount`: count of OCR text-box overlap warnings.
 
+## `video-technical.report.json`
+
+Schema version: string literal `video-technical-report.v1`.
+
+Produced by `video-technical-review`.
+
+Stable top-level fields:
+
+- `schemaVersion`: `"video-technical-report.v1"`.
+- `createdAt`: ISO-8601 timestamp string for artifact creation.
+- `videoPath`: reviewed video path.
+- `outputDir`: report output directory.
+- `contactSheetMetadataPath`: path to `contact-sheet.metadata.json` when frame
+  sampling succeeded.
+- `layoutReportPath`: source layout report path when supplied.
+- `probe`: detected duration, resolution, frame rate, and stream counts.
+- `audio`: measured audio volume fields when available.
+- `sampledFrameCount`: number of technical-review frames sampled.
+- `issues`: ordered technical issues.
+- `metrics`: aggregate sampled-frame metrics.
+- `thresholds`: thresholds used to produce the report.
+
+Stable issue codes:
+
+- `wrong-resolution`
+- `missing-audio`
+- `near-silent-audio`
+- `white-flash-or-white-frame`
+- `black-frame`
+- `white-edge-artifact`
+- `black-gutter-artifact`
+- `low-motion-run`
+- `caption-band-sparse`
+- `layout-*` pass-through issues from `layoutReportPath`
+
+## `contact-sheet.metadata.json`
+
+Schema version: string literal `contact-sheet-metadata.v1`.
+
+Produced by `video-technical-review`.
+
+Stable top-level fields:
+
+- `schemaVersion`: `"contact-sheet-metadata.v1"`.
+- `createdAt`: ISO-8601 timestamp string for artifact creation.
+- `videoPath`: reviewed video path.
+- `outputDir`: report output directory.
+- `sampledFrameCount`: number of sampled frames.
+- `frames`: ordered sampled-frame metadata with timestamp, optional image path,
+  and technical metrics.
+
 ## `storyboard.manifest.json`
 
 Schema version: `1`.

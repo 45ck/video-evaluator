@@ -1,0 +1,8 @@
+{
+  "videoPath": "./output/example-run/output.mp4",
+  "outputDir": "./output/example-run/technical-review",
+  "expectedWidth": 1080,
+  "expectedHeight": 1920,
+  "expectAudio": true,
+  "expectCaptions": true
+}

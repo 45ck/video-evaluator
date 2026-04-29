@@ -60,6 +60,7 @@ coverage across all detected segments.
 | `storyboard-transitions` | Infer coarse frame-to-frame change types.                                               | `storyboard.transitions.json` |
 | `storyboard-understand`  | Summarize likely apps, views, flow, and open questions.                                 | `storyboard.summary.json`     |
 | `layout-safety-review`   | Detect declared layout overlaps, caption safe-zone collisions, and OCR text collisions. | `layout-safety.report.json`   |
+| `video-technical-review` | Detect resolution, audio, frame, edge, low-motion, caption-band, and layout pass-through issues. | `video-technical.report.json` |
 | `segment-evidence`       | Fuse shot, storyboard, OCR, transition, and timeline artifacts by shot.                 | `segment.evidence.json`       |
 
 Run OCR and transitions against `segment-storyboard/` when that folder exists

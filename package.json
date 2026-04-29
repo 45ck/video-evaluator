@@ -6,6 +6,17 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./contracts": {
+      "types": "./dist/contracts/index.d.ts",
+      "import": "./dist/contracts/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "bin": {
     "video-evaluator-agent": "agent/run-tool.mjs"
   },
@@ -36,6 +47,7 @@
     "storyboard-understand": "node --import tsx scripts/harness/storyboard-understand.ts",
     "storyboard-transitions": "node --import tsx scripts/harness/storyboard-transitions.ts",
     "layout-safety-review": "node --import tsx scripts/harness/layout-safety-review.ts",
+    "video-technical-review": "node --import tsx scripts/harness/video-technical-review.ts",
     "review-bundle": "node --import tsx scripts/harness/review-bundle.ts",
     "compare-bundles": "node --import tsx scripts/harness/compare-bundles.ts",
     "package-review-prompt": "node --import tsx scripts/harness/package-review-prompt.ts",
