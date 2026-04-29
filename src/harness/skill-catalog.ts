@@ -1,4 +1,4 @@
-import { readdir, readFile } from "node:fs/promises";
+import { access, readdir, readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { SkillCatalogRequestSchema, type SkillCatalogRequest } from "../core/schemas.js";
 
@@ -16,14 +16,25 @@ export async function listSkillCatalog(_input: SkillCatalogRequest) {
     if (!entry.isDirectory()) continue;
     const skillPath = join(skillsRoot, entry.name, "SKILL.md");
     const raw = await readFile(skillPath, "utf8");
+    const exampleRequestPath = join(skillsRoot, entry.name, "examples", "request.json");
     skills.push({
       slug: entry.name,
       name: readFrontmatterField(raw, "name") ?? entry.name,
       description: readFrontmatterField(raw, "description") ?? "",
       path: skillPath,
+      ...((await pathExists(exampleRequestPath)) ? { exampleRequestPath } : {}),
     });
   }
   return { skills };
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function dirnameFromImportMeta(): string {

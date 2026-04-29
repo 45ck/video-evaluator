@@ -1,0 +1,7 @@
+{
+  "videoPath": "./output/final.mp4",
+  "layoutPath": "./output/final.layout.json",
+  "outputDir": "./output/video-evaluator-layout-safety",
+  "samplingMode": "hybrid",
+  "runOcr": true
+}

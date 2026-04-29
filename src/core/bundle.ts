@@ -13,6 +13,12 @@ const REPORT_CANDIDATES = [
   "media-probe.json",
   "quality-gates.json",
   "caption-artifact.json",
+  "layout-safety.report.json",
+  "video-technical.report.json",
+  "contact-sheet.metadata.json",
+  "golden-frame.diff.json",
+  "demo-visual-review.diff.json",
+  "demo-capture-evidence.json",
   "quality.json",
   "verification.json",
   "validate.json",
@@ -83,6 +89,16 @@ function deriveReportStatus(name: string, data: unknown): { status: string; note
   if (typeof record.status === "string") {
     return { status: record.status };
   }
+  if (typeof record.overallStatus === "string") {
+    return { status: record.overallStatus };
+  }
+  if (
+    record.summary &&
+    typeof record.summary === "object" &&
+    typeof (record.summary as { status?: unknown }).status === "string"
+  ) {
+    return { status: (record.summary as { status: string }).status };
+  }
   if (typeof record.passed === "boolean") {
     return { status: record.passed ? "pass" : "fail" };
   }
@@ -120,6 +136,13 @@ function deriveRecommendedFocus(
   if (artifacts["media-probe.json"]) focus.add("media probe");
   if (artifacts["quality-gates.json"]) focus.add("quality gates");
   if (artifacts["caption-artifact.json"]) focus.add("caption artifacts");
+  if (artifacts["layout-safety.report.json"]) focus.add("layout safety");
+  if (artifacts["video-technical.report.json"]) focus.add("technical video review");
+  if (artifacts["contact-sheet.metadata.json"]) focus.add("contact sheet");
+  if (artifacts["golden-frame.diff.json"] || artifacts["demo-visual-review.diff.json"]) {
+    focus.add("visual diff");
+  }
+  if (artifacts["demo-capture-evidence.json"]) focus.add("screenshot evidence");
   if (artifacts["timestamps.json"]) focus.add("audio timeline");
   if (artifacts["timeline.evidence.json"]) focus.add("timeline evidence");
   if (artifacts["video.shots.json"]) focus.add("video shot structure");

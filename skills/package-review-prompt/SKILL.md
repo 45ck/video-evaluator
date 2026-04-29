@@ -43,6 +43,15 @@ root, such as `analyzer.report.json`, `media-probe.json`, `quality-gates.json`,
 or `caption-artifact.json`, the prompt lists them as report evidence so the
 reviewer starts from the shared analyzer output.
 
+The prompt also routes common reviewer failure modes:
+
+- `quality-gates.json` failures and warnings, with first timestamped evidence
+- `demo-visual-review.diff.json` and `golden-frame.diff.json` mismatch summary
+- `demo-capture-evidence.json` screenshot evidence
+- `caption-artifact.json` readability or sync risk plus caption-related gates
+- `layout-safety.report.json` caption, safe-zone, OCR, and overlap issues
+- an explicit suggested first artifact to inspect next
+
 ## Sequencing Guidance
 
 Run after `video-artifact-intake` or `review-bundle` if you need to delegate a

@@ -101,7 +101,9 @@ For cross-repo handoff, keep `analyzer.report.json`, `media-probe.json`,
 `quality-gates.json`, and `caption-artifact.json` at the bundle root when those
 capabilities ran. `package-review-prompt` treats these as first-class review
 reports so downstream agents inspect shared analyzer evidence before
-repo-specific artifacts.
+repo-specific artifacts. It also summarizes visual diffs, screenshot evidence,
+caption risk, timeline evidence, and layout-safety issues when those artifacts
+exist, then names the first artifact a reviewer should inspect next.
 
 Golden-frame review:
 

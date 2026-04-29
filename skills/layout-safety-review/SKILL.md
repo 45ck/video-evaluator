@@ -36,6 +36,11 @@ annotations:
 videos because it samples both timeline coverage and visually interesting
 moments. `runOcr` defaults to `true`.
 
+`layoutPath` should be a producer-owned sidecar when available. For Remotion,
+HTML, SVG, or canvas renders, ask the producing agent to emit named boxes for
+primary subject, cards, captions, UI, decorative elements, and platform chrome
+so the reviewer can tell whether overlap is intentional or a real defect.
+
 ## Outputs
 
 The runner writes `layout-safety.report.json` in `outputDir` when supplied, or
@@ -62,6 +67,10 @@ for showcase videos; inspect the frames manually.
 Run after `review-bundle` or directly after render. Pair with
 `storyboard-extract`/`storyboard-ocr` when the question is not only geometric
 layout but whether visible text or UI content is correct.
+
+Run `package-review-prompt` after this skill when delegating review to another
+agent. The prompt will surface `layout-safety.report.json` and make it the next
+artifact to inspect when the report is failing or warning.
 
 For `content-machine`, prefer using producer `.layout.json` sidecars from
 Remotion/HTML/SVG renders. For `demo-machine`, use it as evidence feeding the
