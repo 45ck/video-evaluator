@@ -11,8 +11,9 @@ Its job is not to render videos or replace domain-specific QA. Its job
 is to take a video or a video-output bundle, extract grounded evidence,
 and give an agent a shared way to inspect what happened.
 
-This repo exists as a shared layer that should prove itself useful
-before other repos depend on it.
+This repo exists as the shared analyzer layer for the 45ck video tooling
+repos. Product-specific runtimes still own their own capture, generation,
+publishing, and policy decisions, but reusable video evidence belongs here.
 
 ## At A Glance
 
@@ -80,6 +81,31 @@ What it does not do well enough yet:
 - strong semantic understanding of gameplay, cooking, vlogs, sports, or talks
 
 The benchmark work in this repo exists to keep those limits honest.
+
+## Where It Is Used
+
+`video-evaluator` is currently consumed by:
+
+- `45ck/demo-machine`: uses the package as a runtime dependency for
+  `demo-machine analyze`, review bundles, package review prompts, storyboard
+  and segment evidence, layout-safety reports, visual diff primitives, and
+  demo capture evidence routing.
+- `45ck/content-machine`: uses the evaluator as the shared analyzer owner for
+  promoted short-form examples and demo-video audits. The content repo keeps
+  skills, archetype guidance, render policy, caption style guidance, and
+  short-form publishing decisions local.
+
+The boundary is intentional:
+
+- Put reusable facts here: media probe data, quality gates, caption artifacts,
+  OCR/sync checks, technical video review, contact sheets, visual diffs,
+  layout-safety reports, source-media signals, timeline evidence, segment
+  evidence, and review prompt packaging.
+- Keep repo-specific behavior in the producer repo: browser capture and demo
+  semantics in `demo-machine`; short-form archetypes, skills, flows, Remotion
+  choices, and publish policy in `content-machine`.
+- Consumer repos may wrap these tools, but cross-repo artifacts should use the
+  contracts in [Cross-Repo Compatibility](./docs/cross-repo-compatibility.md).
 
 ## How It Works
 
