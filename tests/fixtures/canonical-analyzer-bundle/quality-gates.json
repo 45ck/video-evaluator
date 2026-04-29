@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "quality-gates.v1",
+  "createdAt": "2026-04-29T00:00:00.000Z",
+  "subject": {
+    "kind": "video",
+    "videoPath": "/tmp/canonical/render.mp4"
+  },
+  "overallStatus": "warn",
+  "gates": [
+    {
+      "id": "expected-dimensions",
+      "status": "pass",
+      "metrics": {
+        "width": {
+          "value": 1080,
+          "unit": "pixels"
+        },
+        "height": {
+          "value": 1920,
+          "unit": "pixels"
+        }
+      }
+    },
+    {
+      "id": "caption-safe-zone",
+      "status": "warn",
+      "metrics": {
+        "overlap": {
+          "value": 0.04,
+          "unit": "ratio",
+          "threshold": 0.02
+        }
+      },
+      "evidence": [
+        {
+          "timestampSeconds": 2.4,
+          "note": "caption overlaps product UI"
+        }
+      ]
+    }
+  ]
+}

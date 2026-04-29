@@ -1,6 +1,6 @@
 ---
 name: source-media-signals
-description: Collect first-pass source media facts, audio silence/energy, shot estimates, representative frame status, and placeholder text-risk evidence.
+description: Collect first-pass source media facts, audio silence/energy, shot estimates, representative frame status, and persistent text/caption risk evidence.
 ---
 
 # Source Media Signals
@@ -15,7 +15,8 @@ This skill owns:
 - audio energy and silence signals through `ffmpeg` when available
 - coarse shot and scene estimates through `video-shots` when possible
 - representative frame evidence status
-- placeholder text-risk status until OCR/layout tools provide real evidence
+- persistent text/caption risk evidence from nearby OCR/layout artifacts when present
+- deterministic frame/video fallback evidence when OCR/layout artifacts are absent
 
 ## Inputs
 
@@ -49,13 +50,17 @@ The result contains `manifestPath` and `manifest`. The manifest is
 - `audio.status`, volume fields, and silence segments
 - `video.status`, shot counts, boundaries, and scene-estimate metadata
 - `representativeFrames.status` and frame paths when available
-- `textRisk.status: "placeholder"` until OCR/layout evidence exists
+- `textRisk.status`, `riskLevel`, metrics, artifact paths, and bounded evidence items
+  for visible source text, caption/bottom text, layout text issues, or deterministic
+  frame/video fallback signals.
 
 ## Interpretation Notes
 
 Evidence status is part of the output contract. Treat `unavailable`, `failed`,
-`skipped`, and `placeholder` as abstention signals, not as proof that a risk is
-absent.
+and `skipped` as abstention signals, not as proof that a risk is absent. When
+OCR/layout artifacts are unavailable, `textRisk.evidence` still records fallback
+frame/video signals so downstream guards can persist why the text risk decision
+was conservative.
 
 Repo-side runner:
 

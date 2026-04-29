@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
@@ -18,11 +19,15 @@ interface PngImage {
   height: number;
 }
 
-interface PngStatic {
-  sync: { read: (buf: Buffer) => PngImage };
+interface PngConstructor {
+  new (input: { width: number; height: number }): PngImage;
+  sync: {
+    read: (buf: Buffer) => PngImage;
+    write: (png: PngImage) => Buffer;
+  };
 }
 
-const { PNG } = require("pngjs") as { PNG: PngStatic };
+const { PNG } = require("pngjs") as { PNG: PngConstructor };
 
 export type VideoTechnicalIssueSeverity = "error" | "warning" | "info";
 
@@ -98,6 +103,7 @@ export interface ContactSheetMetadata {
   createdAt: string;
   videoPath: string;
   outputDir: string;
+  contactSheetPath?: string;
   sampledFrameCount: number;
   frames: Array<{
     index: number;
@@ -121,6 +127,7 @@ export interface VideoTechnicalReport {
   createdAt: string;
   videoPath: string;
   outputDir: string;
+  contactSheetPath?: string;
   contactSheetMetadataPath?: string;
   layoutReportPath?: string;
   probe: VideoTechnicalProbe;
@@ -149,8 +156,16 @@ export interface BuildVideoTechnicalReportInput {
   expectAudio: boolean;
   expectCaptions: boolean;
   layoutIssues?: VideoTechnicalIssue[];
+  contactSheetPath?: string;
   contactSheetMetadataPath?: string;
   layoutReportPath?: string;
+}
+
+export interface ContactSheetImageOptions {
+  columns?: number;
+  thumbWidth?: number;
+  thumbHeight?: number;
+  backgroundRgb?: [number, number, number];
 }
 
 interface LowMotionRun {
@@ -477,6 +492,7 @@ export function buildVideoTechnicalReport(
     createdAt: new Date().toISOString(),
     videoPath: resolve(input.videoPath),
     outputDir: resolve(input.outputDir),
+    contactSheetPath: input.contactSheetPath,
     contactSheetMetadataPath: input.contactSheetMetadataPath,
     layoutReportPath: input.layoutReportPath,
     probe: input.probe,
@@ -520,6 +536,7 @@ export async function reviewVideoTechnical(
 ): Promise<{
   reportPath: string;
   report: VideoTechnicalReport;
+  contactSheetPath?: string;
   contactSheetMetadataPath?: string;
   contactSheetMetadata?: ContactSheetMetadata;
 }> {
@@ -542,10 +559,16 @@ export async function reviewVideoTechnical(
   const layoutIssues = input.layoutReportPath
     ? await readLayoutPassThroughIssues(input.layoutReportPath)
     : [];
+  const contactSheetPath =
+    frames.length > 0 ? join(outputDir, "contact-sheet.png") : undefined;
+  if (contactSheetPath) {
+    await writeFile(contactSheetPath, buildContactSheetPngBuffer(frames));
+  }
 
   const contactSheetMetadata = buildContactSheetMetadata({
     videoPath,
     outputDir,
+    contactSheetPath,
     frames,
   });
   const contactSheetMetadataPath = join(
@@ -568,6 +591,7 @@ export async function reviewVideoTechnical(
     expectAudio: input.expectAudio,
     expectCaptions: input.expectCaptions,
     layoutIssues,
+    contactSheetPath,
     contactSheetMetadataPath,
     layoutReportPath: input.layoutReportPath
       ? resolve(input.layoutReportPath)
@@ -575,12 +599,52 @@ export async function reviewVideoTechnical(
   });
   const reportPath = join(outputDir, "video-technical.report.json");
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
-  return { reportPath, report, contactSheetMetadataPath, contactSheetMetadata };
+  return {
+    reportPath,
+    report,
+    contactSheetPath,
+    contactSheetMetadataPath,
+    contactSheetMetadata,
+  };
+}
+
+export function buildContactSheetPngBuffer(
+  frames: FrameTechnicalMetrics[],
+  options: ContactSheetImageOptions = {},
+): Buffer {
+  const imageFrames = frames.filter((frame) => frame.imagePath);
+  const columns = Math.max(1, Math.floor(options.columns ?? 4));
+  const thumbWidth = Math.max(1, Math.floor(options.thumbWidth ?? 270));
+  const thumbHeight = Math.max(1, Math.floor(options.thumbHeight ?? 480));
+  const backgroundRgb = options.backgroundRgb ?? [17, 17, 17];
+  const rows = Math.max(1, Math.ceil(imageFrames.length / columns));
+  const sheet = new PNG({
+    width: columns * thumbWidth,
+    height: rows * thumbHeight,
+  });
+
+  fillImage(sheet, backgroundRgb);
+
+  for (let frameIndex = 0; frameIndex < imageFrames.length; frameIndex += 1) {
+    const frame = imageFrames[frameIndex]!;
+    const source = PNG.sync.read(readFileSyncForContactSheet(frame.imagePath!));
+    const left = (frameIndex % columns) * thumbWidth;
+    const top = Math.floor(frameIndex / columns) * thumbHeight;
+    drawCoverImage(sheet, source, {
+      left,
+      top,
+      width: thumbWidth,
+      height: thumbHeight,
+    });
+  }
+
+  return PNG.sync.write(sheet);
 }
 
 function buildContactSheetMetadata(input: {
   videoPath: string;
   outputDir: string;
+  contactSheetPath?: string;
   frames: FrameTechnicalMetrics[];
 }): ContactSheetMetadata {
   return {
@@ -588,6 +652,7 @@ function buildContactSheetMetadata(input: {
     createdAt: new Date().toISOString(),
     videoPath: input.videoPath,
     outputDir: input.outputDir,
+    contactSheetPath: input.contactSheetPath,
     sampledFrameCount: input.frames.length,
     frames: input.frames.map((frame) => ({
       index: frame.index,
@@ -604,6 +669,53 @@ function buildContactSheetMetadata(input: {
       },
     })),
   };
+}
+
+function fillImage(image: PngImage, rgb: [number, number, number]): void {
+  for (let offset = 0; offset < image.data.length; offset += 4) {
+    image.data[offset] = rgb[0];
+    image.data[offset + 1] = rgb[1];
+    image.data[offset + 2] = rgb[2];
+    image.data[offset + 3] = 255;
+  }
+}
+
+function drawCoverImage(
+  target: PngImage,
+  source: PngImage,
+  box: { left: number; top: number; width: number; height: number },
+): void {
+  const scale = Math.max(box.width / source.width, box.height / source.height);
+  const scaledWidth = source.width * scale;
+  const scaledHeight = source.height * scale;
+  const cropX = (scaledWidth - box.width) / 2;
+  const cropY = (scaledHeight - box.height) / 2;
+
+  for (let y = 0; y < box.height; y += 1) {
+    for (let x = 0; x < box.width; x += 1) {
+      const sourceX = clamp(
+        Math.floor((x + cropX) / scale),
+        0,
+        source.width - 1,
+      );
+      const sourceY = clamp(
+        Math.floor((y + cropY) / scale),
+        0,
+        source.height - 1,
+      );
+      const sourceOffset = (source.width * sourceY + sourceX) << 2;
+      const targetOffset =
+        (target.width * (box.top + y) + (box.left + x)) << 2;
+      target.data[targetOffset] = source.data[sourceOffset]!;
+      target.data[targetOffset + 1] = source.data[sourceOffset + 1]!;
+      target.data[targetOffset + 2] = source.data[sourceOffset + 2]!;
+      target.data[targetOffset + 3] = source.data[sourceOffset + 3] ?? 255;
+    }
+  }
+}
+
+function readFileSyncForContactSheet(path: string): Buffer {
+  return readFileSync(path);
 }
 
 async function probeVideo(videoPath: string): Promise<VideoTechnicalProbe> {
@@ -944,6 +1056,10 @@ function normalizeSeverity(
   if (value === "error" || value === "warning" || value === "info")
     return value;
   return "warning";
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }
 
 function round(value: number): number {

@@ -97,6 +97,12 @@ Existing run review:
 analyze-bundle -> package-review-prompt
 ```
 
+For cross-repo handoff, keep `analyzer.report.json`, `media-probe.json`,
+`quality-gates.json`, and `caption-artifact.json` at the bundle root when those
+capabilities ran. `package-review-prompt` treats these as first-class review
+reports so downstream agents inspect shared analyzer evidence before
+repo-specific artifacts.
+
 Golden-frame review:
 
 ```text

@@ -15,7 +15,8 @@ This skill owns:
   band sparsity, and low-motion runs
 - measuring audio volume when an audio stream exists
 - preserving known issue codes from content-machine audit reports
-- writing `video-technical.report.json` and `contact-sheet.metadata.json`
+- writing `video-technical.report.json`, `contact-sheet.png`, and
+  `contact-sheet.metadata.json`
 
 ## Inputs
 
@@ -38,8 +39,9 @@ Optional fields:
 
 ## Outputs
 
-The result contains `reportPath`, `report`, `contactSheetMetadataPath`, and
-`contactSheetMetadata`. The report is written to `video-technical.report.json`.
+The result contains `reportPath`, `report`, `contactSheetPath`,
+`contactSheetMetadataPath`, and `contactSheetMetadata`. The report is written to
+`video-technical.report.json`.
 
 Preserved issue codes:
 

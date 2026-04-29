@@ -115,7 +115,11 @@ export type {
   SourceMediaSignalsOptions,
   SourceMediaSignalsResult,
   SourceMediaSilenceSegment,
-  SourceMediaTextRiskPlaceholder,
+  SourceMediaTextRiskEvidence,
+  SourceMediaTextRiskEvidenceSeverity,
+  SourceMediaTextRiskEvidenceSource,
+  SourceMediaTextRiskLevel,
+  SourceMediaTextRiskSignals,
   SourceMediaVideoSignals,
 } from "./source-media/signals.js";
 export type {

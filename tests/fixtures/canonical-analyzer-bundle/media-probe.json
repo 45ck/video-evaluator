@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "media-probe.v1",
+  "createdAt": "2026-04-29T00:00:00.000Z",
+  "videoPath": "/tmp/canonical/render.mp4",
+  "file": {
+    "path": "/tmp/canonical/render.mp4",
+    "sizeBytes": 4096
+  },
+  "container": {
+    "formatName": "mov,mp4,m4a,3gp,3g2,mj2",
+    "durationSeconds": 8
+  },
+  "video": {
+    "width": 1080,
+    "height": 1920,
+    "codecName": "h264",
+    "frameRateFps": 30,
+    "durationSeconds": 8
+  },
+  "audio": {
+    "present": true,
+    "codecName": "aac",
+    "channels": 2
+  }
+}

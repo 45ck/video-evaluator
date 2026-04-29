@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import test from "node:test";
 import {
   analyzePngFrame,
+  buildContactSheetPngBuffer,
   buildVideoTechnicalReport,
   type FrameTechnicalMetrics,
   type VideoTechnicalThresholds,
@@ -94,8 +98,15 @@ test("buildVideoTechnicalReport preserves content-machine technical issue codes"
     thresholds,
     expectAudio: true,
     expectCaptions: true,
+    contactSheetPath: "/tmp/review/contact-sheet.png",
+    contactSheetMetadataPath: "/tmp/review/contact-sheet.metadata.json",
   });
 
+  assert.equal(report.contactSheetPath, "/tmp/review/contact-sheet.png");
+  assert.equal(
+    report.contactSheetMetadataPath,
+    "/tmp/review/contact-sheet.metadata.json",
+  );
   const codes = new Set(report.issues.map((issue) => issue.code));
   assert.ok(codes.has("wrong-resolution"));
   assert.ok(codes.has("missing-audio"));
@@ -197,4 +208,45 @@ test("analyzePngFrame computes edge and frame metrics from png pixels", () => {
   assert.equal(metrics.height, 20);
   assert.ok(metrics.edgeWhiteRatio > 0.5);
   assert.ok(metrics.contentWhiteRatio < 0.1);
+});
+
+test("buildContactSheetPngBuffer creates a contact sheet artifact from sampled frames", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "video-technical-review-"));
+  const framePaths: string[] = [];
+
+  for (let index = 0; index < 3; index += 1) {
+    const png = new PNG({ width: 4, height: 6 });
+    for (let offset = 0; offset < png.data.length; offset += 4) {
+      png.data[offset] = index === 0 ? 255 : 0;
+      png.data[offset + 1] = index === 1 ? 255 : 0;
+      png.data[offset + 2] = index === 2 ? 255 : 0;
+      png.data[offset + 3] = 255;
+    }
+    const path = join(dir, `frame-${index + 1}.png`);
+    await writeFile(path, PngSync.sync.write(png));
+    framePaths.push(path);
+  }
+
+  const sheet = PngSync.sync.read(
+    buildContactSheetPngBuffer(
+      framePaths.map((imagePath, index) =>
+        frame(index + 1, {
+          imagePath,
+          width: 4,
+          height: 6,
+        }),
+      ),
+      {
+        columns: 2,
+        thumbWidth: 4,
+        thumbHeight: 6,
+      },
+    ),
+  );
+
+  assert.equal(sheet.width, 8);
+  assert.equal(sheet.height, 12);
+  assert.equal(sheet.data[0], 255);
+  assert.equal(sheet.data[(4 << 2) + 1], 255);
+  assert.equal(sheet.data[(8 * 6 * 4) + 2], 255);
 });

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "caption-artifact.v1",
+  "createdAt": "2026-04-29T00:00:00.000Z",
+  "subject": {
+    "kind": "video",
+    "videoPath": "/tmp/canonical/render.mp4"
+  },
+  "trackFormat": "webvtt",
+  "cues": [
+    {
+      "startSeconds": 0,
+      "endSeconds": 2,
+      "text": "Open the dashboard",
+      "source": "asr"
+    }
+  ],
+  "summary": {
+    "status": "pass",
+    "cueCount": 1,
+    "readableCueShare": 1
+  }
+}

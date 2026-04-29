@@ -9,6 +9,10 @@ const execFileAsync = promisify(execFile);
 
 const VIDEO_CANDIDATES = ["output.mp4", "video.mp4", "video.webm"];
 const REPORT_CANDIDATES = [
+  "analyzer.report.json",
+  "media-probe.json",
+  "quality-gates.json",
+  "caption-artifact.json",
   "quality.json",
   "verification.json",
   "validate.json",
@@ -112,6 +116,10 @@ function deriveRecommendedFocus(
     }
   }
   if (artifacts["events.json"]) focus.add("timeline accuracy");
+  if (artifacts["analyzer.report.json"]) focus.add("analyzer report");
+  if (artifacts["media-probe.json"]) focus.add("media probe");
+  if (artifacts["quality-gates.json"]) focus.add("quality gates");
+  if (artifacts["caption-artifact.json"]) focus.add("caption artifacts");
   if (artifacts["timestamps.json"]) focus.add("audio timeline");
   if (artifacts["timeline.evidence.json"]) focus.add("timeline evidence");
   if (artifacts["video.shots.json"]) focus.add("video shot structure");

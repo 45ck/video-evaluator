@@ -76,7 +76,7 @@ test("parseAudioSignals extracts volume and silence evidence from ffmpeg stderr"
   assert.equal(signals.silentShare, 0.125);
 });
 
-test("buildSourceMediaSignals writes manifest with probe facts, audio, shots, frames, and placeholders", async () => {
+test("buildSourceMediaSignals writes manifest with probe facts, audio, shots, frames, and fallback text evidence", async () => {
   await withTempDir(async (dir) => {
     const videoPath = join(dir, "sample.mp4");
     await writeFile(videoPath, "fake-media");
@@ -149,8 +149,91 @@ test("buildSourceMediaSignals writes manifest with probe facts, audio, shots, fr
     assert.equal(result.manifest.video.shotCount, 2);
     assert.equal(result.manifest.representativeFrames.status, "available");
     assert.equal(result.manifest.representativeFrames.framePaths.length, 2);
-    assert.equal(result.manifest.textRisk.status, "placeholder");
+    assert.equal(result.manifest.textRisk.status, "unavailable");
+    assert.equal(result.manifest.textRisk.riskLevel, "low");
+    assert.equal(result.manifest.textRisk.evidence[0]?.kind, "representative-frame-needs-text-review");
+    assert.equal(result.manifest.textRisk.metrics.fallbackFrameCount, 2);
     assert.deepEqual(persisted, result.manifest);
+  });
+});
+
+test("buildSourceMediaSignals persists OCR and layout text risk evidence when artifacts exist", async () => {
+  await withTempDir(async (dir) => {
+    const videoPath = join(dir, "sample.mp4");
+    await writeFile(videoPath, "fake-media");
+    await writeFile(
+      join(dir, "storyboard.ocr.json"),
+      JSON.stringify(
+        {
+          frames: [
+            {
+              index: 1,
+              timestampSeconds: 1.5,
+              lines: [
+                { text: "Settings", confidence: 92, region: "top" },
+                { text: "Tap here to continue", confidence: 51, region: "bottom" },
+              ],
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+    await writeFile(
+      join(dir, "layout-safety.report.json"),
+      JSON.stringify(
+        {
+          issues: [
+            {
+              severity: "error",
+              code: "caption-safe-zone-collision",
+              message: "Primary subject overlaps captions.",
+              timeSeconds: 1.5,
+              details: { overlapRatio: 0.42 },
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+    const input = SourceMediaSignalsRequestSchema.parse({
+      videoPath,
+      outputDir: dir,
+      runVideoShots: false,
+    });
+
+    const result = await buildSourceMediaSignals(input, {
+      now: () => new Date(createdAt),
+      probe: async () => mediaProbe(resolve(videoPath)),
+      analyzeAudio: async () => ({
+        status: "available",
+        hasAudio: true,
+        meanVolumeDb: -20,
+        maxVolumeDb: -3,
+        silenceThresholdDb: -35,
+        minSilenceDurationSeconds: 0.25,
+        silenceSegments: [],
+        totalSilenceSeconds: 0,
+        silentShare: 0,
+      }),
+    });
+
+    assert.equal(result.manifest.textRisk.status, "available");
+    assert.equal(result.manifest.textRisk.riskLevel, "high");
+    assert.equal(result.manifest.textRisk.metrics.ocrFrameCount, 1);
+    assert.equal(result.manifest.textRisk.metrics.ocrTextLineCount, 2);
+    assert.equal(result.manifest.textRisk.metrics.lowConfidenceLineCount, 1);
+    assert.equal(result.manifest.textRisk.metrics.bottomRegionLineCount, 1);
+    assert.equal(result.manifest.textRisk.metrics.layoutIssueCount, 1);
+    assert.ok(result.manifest.textRisk.artifacts.ocrPath?.endsWith("storyboard.ocr.json"));
+    assert.ok(result.manifest.textRisk.artifacts.layoutReportPath?.endsWith("layout-safety.report.json"));
+    assert.ok(result.manifest.textRisk.evidence.some((item) => item.kind === "visible-source-text-detected"));
+    assert.ok(result.manifest.textRisk.evidence.some((item) => item.kind === "caption-or-bottom-text-detected"));
+    assert.ok(result.manifest.textRisk.evidence.some((item) => item.kind === "caption-safe-zone-collision"));
   });
 });
 

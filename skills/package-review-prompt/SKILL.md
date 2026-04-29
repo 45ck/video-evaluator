@@ -38,7 +38,10 @@ handed to Codex or Claude Code for the next review step. When
 `timeline.evidence.json` exists, the prompt includes a short timeline preview.
 When `video.shots.json` exists, the prompt includes a short shot-structure
 preview. When `segment.evidence.json` exists, the prompt includes a short
-segment-evidence preview.
+segment-evidence preview. When canonical analyzer files exist at the bundle
+root, such as `analyzer.report.json`, `media-probe.json`, `quality-gates.json`,
+or `caption-artifact.json`, the prompt lists them as report evidence so the
+reviewer starts from the shared analyzer output.
 
 ## Sequencing Guidance
 

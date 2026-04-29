@@ -66,6 +66,11 @@ Current child artifacts emitted by the orchestrator include `media-probe.json`,
 `technical-review/video-technical.report.json`, and `review-bundle.json` when
 the corresponding inputs or capabilities are present.
 
+For cross-repo compatibility bundles, keep `analyzer.report.json` at the bundle
+root and prefer root-level copies of `media-probe.json`, `quality-gates.json`,
+and `caption-artifact.json` when those capabilities ran. Consumer repos should
+use these canonical files before reading product-specific reports.
+
 ## `layout-annotations.v1.json`
 
 Schema version: string literal `layout-annotations.v1`.
@@ -127,6 +132,8 @@ Stable top-level fields:
 - `createdAt`: ISO-8601 timestamp string for artifact creation.
 - `videoPath`: reviewed video path.
 - `outputDir`: report output directory.
+- `contactSheetPath`: path to `contact-sheet.png` when frame sampling
+  succeeded.
 - `contactSheetMetadataPath`: path to `contact-sheet.metadata.json` when frame
   sampling succeeded.
 - `layoutReportPath`: source layout report path when supplied.
@@ -201,6 +208,7 @@ Stable top-level fields:
 - `createdAt`: ISO-8601 timestamp string for artifact creation.
 - `videoPath`: reviewed video path.
 - `outputDir`: report output directory.
+- `contactSheetPath`: path to the sampled-frame contact sheet image.
 - `sampledFrameCount`: number of sampled frames.
 - `frames`: ordered sampled-frame metadata with timestamp, optional image path,
   and technical metrics.

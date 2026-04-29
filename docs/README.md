@@ -21,6 +21,8 @@ The short version:
   review, shot-aware review, existing bundles, comparisons, and benchmarks.
 - [Artifact contracts](./artifact-contracts.md): stable fields, compatibility
   expectations, and non-contract diagnostics for storyboard artifacts.
+- [Cross-repo compatibility](./cross-repo-compatibility.md): canonical analyzer
+  bundle files and fixture expectations for consumer repos.
 - [Roadmap](./roadmap.md): what remains weak, what should improve next, and
   what should stay out of scope.
 - [YouTube evaluation](./youtube-evaluation.md): how to use the public-video
